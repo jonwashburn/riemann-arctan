@@ -223,32 +223,6 @@ lemma outer_exists_with_modulus_det2_over_xi :
   refine ⟨O_simple, O_simple_outer, ?_⟩
   exact O_simple_boundary_modulus
 
-namespace Quarantine
-
-/-- A.1-style packaging: assuming a Poisson potential for `log_u` exists, produce the outer.
-
-This lemma, together with the axiom below, is quarantined so that the active build
-does not depend on the placeholder witness. -/
-theorem outer_exists_with_modulus_det2_over_xi_poisson_assuming
-    (hExist : PoissonPotentialExists_log_u) :
-    RH.AcademicFramework.HalfPlaneOuterV2.ExistsOuterWithModulus
-      (fun s => RH.RS.det2 s / RH.AcademicFramework.CompletedXi.riemannXi_ext s) := by
-  classical
-  rcases hExist with ⟨G, hPot⟩
-  exact outer_exists_with_modulus_det2_over_xi_poisson (G := G) hPot
-
-/-- Local assumption cached for reference: a Poisson potential for `log_u` exists. -/
-axiom poissonPotentialExists_log_u_assumed : PoissonPotentialExists_log_u
-
-/-- Immediate corollary under the quarantined assumption. Downstream code should avoid
-relying on this alias; the active proof path uses the unconditional witness above. -/
-theorem outer_exists_with_modulus_det2_over_xi_poisson_assumed :
-    RH.AcademicFramework.HalfPlaneOuterV2.ExistsOuterWithModulus
-      (fun s => RH.RS.det2 s / RH.AcademicFramework.CompletedXi.riemannXi_ext s) :=
-  outer_exists_with_modulus_det2_over_xi_poisson_assuming poissonPotentialExists_log_u_assumed
-
-end Quarantine
-
 /-- If `Re(F_pinch det2 O_simple) ≥ 0` on a region `R`, then the associated Θ is Schur on `R`. -/
 lemma Theta_Schur_on_of_Re_nonneg
     {R : Set ℂ}

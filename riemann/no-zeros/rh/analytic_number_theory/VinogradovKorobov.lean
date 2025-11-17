@@ -1,53 +1,89 @@
-import rh.RS.BoundaryWedgeProof
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Real.Basic
+import rh.RS.sealed.BoundaryWedgeProofCore
 
-/-!
-Vinogradov–Korobov formal counts re-exports.
+/-
+Vinogradov–Korobov annular counts interfaces.
 
-This lightweight module surfaces the formal dyadic counts lemma and the
-VK-style partial-sum budget builder for the canonical `ν_default` used in the
-CR–Green/Whitney analysis. It introduces no axioms.
+This module packages the short-interval (dyadic annulus) counting inequality
+used by the Route B pipeline.  It exposes a reusable structure recording the
+linear partial-sum bound, re-expresses the canonical `ν_default` witness, and
+provides a helper that upgrades the inequality to a `VKPartialSumBudget`.
+
+All statements remain axiom-free; the proofs ultimately rely on the RS payload
+available in `rh.RS.BoundaryWedgeProof`.
 -/
 
 namespace RH.AnalyticNumberTheory
 namespace VinogradovKorobov
 
+open scoped BigOperators
+open RH.RS
 open RH.RS.BoundaryWedgeProof
 
-/-! ## Short-interval VK count bound for `ν_default`
+/-- Captures the VK short-interval inequality on a Whitney interval. -/
+structure ShortIntervalCounts (I : WhitneyInterval) where
+  nu : ℕ → ℝ
+  nonneg : ∀ k, 0 ≤ nu k
+  Cν : ℝ
+  Cν_nonneg : 0 ≤ Cν
+  Cν_le_two : Cν ≤ 2
+  partial_sum_le :
+    ∀ K : ℕ,
+      ((Finset.range K).sum fun k => nu k) ≤ Cν * (2 * I.len)
 
-We package a library-friendly statement for the dyadic annular counts used in
-the RS pipeline. The key quantitative claim is a linear partial-sum bound
-  ∑_{k<K} ν_default(I,k) ≤ Cν · (2·I.len)
-with explicit calibration 0 ≤ Cν ≤ 2. This relies only on the interface-level
-facts already available in `BoundaryWedgeProof` about how ν_default is built
-from residue bookkeeping and requires no analytic axioms here.
+namespace ShortIntervalCounts
 
-We also provide a ready-to-use bridge constructor that turns this counts bound
-into a `VKPartialSumBudget` for the weighted sequence φ_k := (1/4)^k · ν_k.
--/
+variable {I : WhitneyInterval}
 
-/-- Short-interval VK counts for the canonical `ν_default` witness. -/
-theorem hVK_counts_default (I : RH.RS.WhitneyInterval) :
-  ∃ Cν : ℝ, 0 ≤ Cν ∧ Cν ≤ 2 ∧
-    (∀ K : ℕ,
-      ((Finset.range K).sum (fun k => RH.RS.BoundaryWedgeProof.nu_default I k))
-        ≤ Cν * (2 * I.len)) := by
-  -- Reuse the formal counts witness exported by the RS module
-  simpa using RH.RS.BoundaryWedgeProof.hVK_counts_default I
+/-- Convenience lemma rewriting the partial-sum inequality. -/
+lemma partial_sum_bound (h : ShortIntervalCounts I) (K : ℕ) :
+    ((Finset.range K).sum fun k => h.nu k) ≤ h.Cν * (2 * I.len) :=
+  h.partial_sum_le K
 
-/-- VK partial‑sum budget for `φ_k = (1/4)^k · ν_default(k)` from the counts bound. -/
-lemma VKPartialSumBudget_from_counts_default (I : RH.RS.WhitneyInterval) :
-  ∃ (VD : RH.RS.BoundaryWedgeProof.VKPartialSumBudget I
-        (RH.RS.BoundaryWedgeProof.phi_of_nu (RH.RS.BoundaryWedgeProof.nu_default I))),
-    0 ≤ VD.Cν ∧ VD.Cν ≤ 2 := by
+end ShortIntervalCounts
+
+section DefaultCounts
+
+variable (I : WhitneyInterval)
+
+/-- Bundles the canonical counts witness from the RS layer. -/
+noncomputable def defaultCounts : ShortIntervalCounts I := by
   classical
-  -- Obtain the counts bound and calibrations
-  rcases hVK_counts_default I with ⟨Cν, hCν0, hCν2, hPS⟩
-  -- Build the VK partial-sum budget via the standard adapter
-  refine ⟨RH.RS.BoundaryWedgeProof.VKPartialSumBudget.from_counts I
-            (RH.RS.BoundaryWedgeProof.nu_default I) Cν
-            (RH.RS.BoundaryWedgeProof.nu_default_nonneg I)
-            (by intro K; simpa using hPS K), hCν0, hCν2⟩
+  obtain ⟨Cν, hCν0, hCν2, hPS⟩ := RH.RS.BoundaryWedgeProof.hVK_counts_default I
+  exact
+    { nu := nu_default I
+    , nonneg := nu_default_nonneg I
+    , Cν := Cν
+    , Cν_nonneg := hCν0
+    , Cν_le_two := hCν2
+    , partial_sum_le := hPS }
+
+/-- Short-interval VK inequality for `ν_default`. -/
+theorem hVK_counts_default :
+    ∃ Cν : ℝ, 0 ≤ Cν ∧ Cν ≤ 2 ∧
+      (∀ K : ℕ,
+        ((Finset.range K).sum fun k => nu_default I k) ≤ Cν * (2 * I.len)) := by
+  classical
+  refine ⟨(defaultCounts I).Cν, (defaultCounts I).Cν_nonneg,
+    (defaultCounts I).Cν_le_two, ?_⟩
+  intro K
+  simpa using (defaultCounts I).partial_sum_le K
+
+/-- VK partial-sum budget for `φ_k = (1/4)^k · ν_default(k)` obtained from the counts bound. -/
+lemma VKPartialSumBudget_from_counts_default :
+    ∃ (VD : VKPartialSumBudget I (phi_of_nu (nu_default I))),
+      0 ≤ VD.Cν ∧ VD.Cν ≤ 2 := by
+  classical
+  obtain ⟨Cν, hCν0, hCν2, hPS⟩ := hVK_counts_default (I := I)
+  refine ⟨VKPartialSumBudget.from_counts I (nu_default I) Cν
+      (nu_default_nonneg I) (by intro K; simpa using hPS K), ?_, ?_⟩
+  · simpa [VKPartialSumBudget.from_counts, VKPartialSumBudget.of]
+      using hCν0
+  · simpa [VKPartialSumBudget.from_counts, VKPartialSumBudget.of]
+      using hCν2
+
+end DefaultCounts
 
 end VinogradovKorobov
 end RH.AnalyticNumberTheory

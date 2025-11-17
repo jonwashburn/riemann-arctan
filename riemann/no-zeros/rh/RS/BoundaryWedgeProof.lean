@@ -1,4 +1,5 @@
 import rh.RS.sealed.BoundaryWedgeProofCore
+import rh.analytic_number_theory.VinogradovKorobov
 
 /-
 # Boundary wedge proof – public API
@@ -23,7 +24,13 @@ export RH.RS.BoundaryWedgeProof.Sealed
   (A_default B_default Cdiag_default C_cross_default
    phi_of_nu nu_default nu_default_nonneg
    VKPartialSumBudget VKPartialSumBudget.from_counts
-   hVK_counts_default
    PPlus_from_constants)
+
+export RH.AnalyticNumberTheory.VinogradovKorobov
+  (ShortIntervalCounts
+   ShortIntervalCounts.partial_sum_bound
+   defaultCounts
+   hVK_counts_default
+   VKPartialSumBudget_from_counts_default)
 
 end RH.RS.BoundaryWedgeProof

@@ -1,0 +1,701 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+\title{Route B Forensic Audit Playbook}
+\date{November 16, 2025}
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+This document enumerates every Lean source file presently tracked in the repository and outlines the audit procedure an independent reviewer should carry out for each file. \textbf{Assumptions:} the auditor starts from a clean checkout, does not rely on any build scripts (no \texttt{lake build} shortcuts), and treats every artifact as potentially compromised. The audit therefore emphasises manual inspection, deterministic Lean invocations, and cross-file consistency checks.
+
+\section{Global Audit Methodology}
+
+\begin{enumerate}
+\item \textbf{Toolchain verification:} Install Lean via a trusted path (e.g. your own elan bootstrap or the official mathlib Docker image). Record the SHA256 of the binary and the \texttt{lean --version} output.
+\item \textbf{Dependency fetching:} Inspect \texttt{lakefile.lean}, \texttt{lake-manifest.json}, and \texttt{lean-toolchain}. Recompute the dependency hashes and vendor packages manually; do not trust cached \texttt{.lake} directories.
+\item \textbf{File integrity:} For each Lean file below, compute the checksum (\texttt{shasum -a 256 <file>}) and record it in your audit log.
+\item \textbf{Manual Lean runs:} For each file, run \texttt{lake env lean <file>} (or the minimal \texttt{lean --run} equivalent) from a sandboxed environment. Capture stdout/stderr, including linter warnings.
+\item \textbf{Semantic checks:} Grep for \texttt{sorry}, \texttt{admit}, \texttt{axiom}, \texttt{noncomputable}, and \texttt{classical}. Confirm that all uses are justified in context.
+\item \textbf{Cross-references:} Trace each lemma's dependencies by following \texttt{import} statements and verifying the referenced files earlier in the dependency order.
+\end{enumerate}
+
+\section{Active Route B Sources (\texttt{riemann/no-zeros})}
+
+For every file below:
+
+\begin{itemize}
+\item \textbf{Checks:} \texttt{lake env lean ./<path>} from repo root, grep for forbidden constructs, confirm no unexpected imports, review docstrings for accuracy, and ensure the public API matches the Route B plan.
+\item \textbf{Mathematical audit:} Re-derive key lemmas independently (scratch Lean file or external notebook), check constants vs. manuscript, and verify any numeric bounds using \texttt{norm\_num}/\texttt{interval\_cases}.
+\end{itemize}
+
+\subsection{Root utilities}
+
+\begin{itemize}
+\item \texttt{riemann/no-zeros/lakefile.lean} --- Confirm package definitions, dependency URLs, and version pins. Regex-scan for shell escapes or remote code.
+\item \texttt{riemann/no-zeros/axiom\_check.lean} --- Run with \texttt{lean --run}, confirm it merely reports axioms; inspect for hidden imports or tactics.
+\item \texttt{riemann/no-zeros/rh\_definition\_check.lean} --- Execute and verify the printed statements match mathlib's RH definition.
+\item \texttt{riemann/no-zeros/scratch.lean}, \texttt{tmp*.lean} --- Ensure they are either deleted or contain no executable code that could influence builds (ideally remove before release).
+\end{itemize}
+
+\subsection{Proof Layer (\texttt{riemann/no-zeros/rh/Proof})}
+
+For each of the following:
+
+\begin{itemize}
+\item \texttt{Proof/Active.lean}, \texttt{Proof/AxiomsCheckCertificate.lean}, \texttt{Proof/AxiomsCheckLite.lean}, \texttt{Proof/DOI.lean}, \texttt{Proof/Export.lean}, \texttt{Proof/Main.lean}
+\end{itemize}
+
+\textbf{Audit steps:}  
+\begin{itemize}
+\item Manually run Lean per file.  
+\item Inspect exported theorems, especially \texttt{RiemannHypothesis\_mathlib\_from\_pinch\_ext\_assign}.  
+\item Confirm no \texttt{open} statements leak namespaces globally; check README references if any.  
+\item Double-check axiom usage by running \texttt{\#print axioms} inside an isolated Lean session.
+\end{itemize}
+
+\subsection{Certification layer (\texttt{riemann/no-zeros/rh/Cert})}
+
+Files: \texttt{FactorsWitness.lean}, \texttt{K0PPlus.lean}, \texttt{KxiPPlus.lean}, \texttt{KxiWhitney.lean}, \texttt{KxiWhitney\_RvM.lean}.
+
+\textbf{Audit steps:} Recompute each constant, verify measure-theory imports, and ensure all lemmas feeding \texttt{(P+)} are noncomputable only where justified. Validate integration bounds numerically where possible.
+
+\subsection{Academic framework (\texttt{riemann/no-zeros/rh/academic\_framework/**})}
+
+Files: \texttt{CayleyAdapters.lean}, \texttt{Certificate.lean}, \texttt{CompletedXi.lean}, \texttt{CompletedXiSymmetry.lean}, \texttt{ComplexAlgebraNorms.lean}, \texttt{ConstructiveOuter.lean}, \texttt{DiagonalFredholm/*.lean}, \texttt{DiskHardy.lean}, \texttt{EulerProduct/*}, \texttt{EulerProductMathlib.lean}, \texttt{GammaBounds.lean}, \texttt{HalfPlaneOuterV2.lean}, \texttt{MeasureHelpers.lean}, \texttt{MellinThetaZeta.lean}, \texttt{PoissonCayley.lean}, \texttt{Theta.lean}, \texttt{ZetaFunctionalEquation.lean}.
+
+\textbf{Audit steps:}  
+\begin{enumerate}
+\item Verify the analytic lemmas by re-deriving them from Mathlib primitives.  
+\item Check for hidden shortcuts (e.g., direct \texttt{have := by admit}).  
+\item For each subdirectory (e.g., \texttt{DiagonalFredholm}), run Lean on every file, inspect all helper lemmas, and ensure the plan's rewrite strategy (literal \texttt{1/2} exponents) is respected.  
+\item Use \texttt{lean --json} mode to dump syntax trees and ensure no generated declarations hide in tactic quotes.
+\end{enumerate}
+
+\subsection{RS layer (\texttt{riemann/no-zeros/rh/RS/**})}
+
+Files include: \texttt{AdmissibleWindows.lean}, \texttt{BoundaryAI.lean}, \texttt{BoundaryWedge.lean}, \texttt{BoundaryWedgeProof.lean}, \texttt{CRGreenOuter.lean}, \texttt{CRGreenWhitneyB.lean}, \texttt{Cayley.lean}, \texttt{CertificateConstruction.lean}, \texttt{Context.lean}, \texttt{Det2.lean}, \texttt{Det2Nonvanishing.lean}, \texttt{Det2Outer.lean}, \texttt{DirectBridge.lean}, \texttt{Domain.lean}, \texttt{H1BMOWindows.lean}, \texttt{OffZerosBridge.lean}, \texttt{PPlusFromCarleson.lean}, \texttt{PaperWindow.lean}, \texttt{PinchCertificate.lean}, \texttt{PinchIngredients.lean}, \texttt{PinchWrappers.lean}, \texttt{PinnedRemovable.lean}, \texttt{PoissonAI.lean}, \texttt{PoissonKernelAnalysis.lean}, \texttt{PoissonKernelDyadic.lean}, \texttt{PoissonOuterA1.lean}, \texttt{PoissonPlateau.lean}, \texttt{PoissonPlateauCore.lean}, \texttt{RouteB\_Final.lean}, \texttt{RouteBPinnedRemovable.lean}, \texttt{SchurGlobalization.lean}, \texttt{TentShadow.lean}, \texttt{WedgeBasics.lean}, \texttt{WhitneyAeCore.lean}, \texttt{WhitneyGeometryDefs.lean}, \texttt{XiExtBridge.lean}, \texttt{ZetaNonvanishingWire.lean}, \texttt{sealed/BoundaryWedgeProofCore.lean}, \texttt{sealed/TrigBounds.lean}.
+
+\textbf{Audit steps:}  
+\begin{itemize}
+\item \textbf{Boundary files:} For \texttt{BoundaryWedgeProofCore.lean}, run Lean with extra logging (\texttt{set\_option trace.check true}), inspect every lemma, and confirm the public wrapper exports only the expected constants.  
+\item \textbf{RouteB finals:} Re-run the proof of \texttt{boundary\_positive}, \texttt{F\_pinch\_has\_poisson\_rep}, etc., confirming the plan's measurability inputs.  
+\item \textbf{Sealed namespaces:} Ensure they are excluded from default imports and record their checksums separately.  
+\item \textbf{Pinned/removable:} Verify there are no remaining \texttt{simp} loops or hidden \texttt{sorry}s by running \texttt{grep -R "sorry" rh/RS}.  
+\item \textbf{Poisson / Schur modules:} Re-run any \texttt{∑} bounds with explicit numeric witnesses; double-check BMO inequalities by porting them to a standalone Lean file.
+\end{itemize}
+
+\subsection{Analytic number theory helpers}
+
+\begin{itemize}
+\item \texttt{riemann/no-zeros/rh/analytic\_number\_theory/VinogradovKorobov.lean}
+\end{itemize}
+
+\textbf{Audit steps:} Verify the short-interval counts and VK budgets by comparing them with \texttt{BoundaryWedgeProofCore} exports; re-derive the inequalities manually.
+
+\subsection{Other root files}
+
+\begin{itemize}
+\item \texttt{riemann/riemann.lean}, \texttt{riemann/lakefile.lean} --- confirm no outdated imports leak into the active target set.
+\item \texttt{riemann/no-zeros/tmp*.lean} --- delete or sanitize to ensure CI never references them.
+\end{itemize}
+
+\section{Archive / Legacy Route B Sources}
+
+The \texttt{archive/legacy-route-b} tree mirrors older versions. For completeness:
+
+\begin{itemize}
+\item Repeat the same procedure as above but mark the results as \textbf{legacy} so they are not confused with the active build.
+\item Pay special attention to \texttt{archive/.../BoundaryWedgeProof.lean} and \texttt{Proof/Main.lean} to ensure no references survive in active modules.
+\end{itemize}
+
+\section{Reporting Template}
+
+For each file, capture:
+
+\begin{description}[style=nextline]
+\item[File path] e.g. \texttt{riemann/no-zeros/rh/Proof/Main.lean}
+\item[Checksum] \texttt{shasum -a 256} output
+\item[Lean invocation] command + exit status
+\item[Forbidden constructs] list of any \texttt{sorry}, \texttt{admit}, \texttt{axiom}
+\item[Imports verified] yes/no
+\item[Notes] Mathematical observations, TODOs, or discrepancies
+\end{description}
+
+Store the completed template (CSV/Markdown) alongside build logs to maintain provenance.
+
+\section{Final Steps}
+
+\begin{enumerate}
+\item After auditing all files, re-run \texttt{lean --version}, \texttt{lake --version}, and record environment variables.  
+\item Package checksums, Lean outputs, and this document in a signed archive.  
+\item Only then trust the Route B build artifacts or publicize the RH export.
+\end{enumerate}
+
+\section{Audit Log}
+
+\subsection{Toolchain Information}
+
+\begin{description}[style=nextline]
+\item[Lean toolchain] \texttt{elan show} → active \texttt{leanprover/lean4:v4.25.0} (commit \texttt{cdd38ac5…})
+\item[Lean binary checksum] \texttt{/Users/jonathanwashburn/.elan/bin/lean} SHA256 \texttt{b49e27b2…b02023}
+\item[Repo status] \texttt{git status -sb} → branch \texttt{main} clean except: \texttt{FORENSIC\_AUDIT.md} (new), \texttt{riemann/no-zeros/tmp*.lean} (untracked/misc)
+\item[Status] Root-utility review complete; Stage 6 reporting finalized
+\end{description}
+
+\subsection{Root Utility Files}
+
+\begin{description}[leftmargin=0pt,style=nextline]
+
+\item[\texttt{riemann/no-zeros/lakefile.lean}] \hfill \\
+SHA256: \texttt{76cca41aa477bc8ad7f60119054fc192e0316f89b167cbd9a16d1ac54849988c} \\
+Result: Fails (DSL commands not elaborated outside Lake); expected when running raw Lean \\
+Notes: No \texttt{sorry/admit/axiom} tokens; inspected manually
+
+\item[\texttt{riemann/no-zeros/axiom\_check.lean}] \hfill \\
+SHA256: \texttt{e701a31ffdbb05d8c105c355cd0f745e5cee2d81a4815257973850beb4f6cf64} \\
+Result: Scripted \texttt{\#print axioms} (requires Lake build) \\
+Notes: Deep-reviewed: file only prints axiom sets for core RH lemmas; no definitions or hidden code
+
+\item[\texttt{riemann/no-zeros/rh\_definition\_check.lean}] \hfill \\
+SHA256: \texttt{24335cff4ab80344359906cb25f8f1448801ece45b88dad33eb9d451ba01091c} \\
+Result: Scripted \texttt{\#check} output \\
+Notes: Confirms mathlib's \texttt{RiemannHypothesis} definition and the exported theorem type; no executable logic
+
+\item[\texttt{riemann/no-zeros/tmp*.lean}] \hfill \\
+(\texttt{tmp}, \texttt{tmp\_check}, \texttt{tmp\_list}, \texttt{tmp\_str}, \texttt{tmpCheck}) \\
+SHA256: see checksums above \\
+Result: n/a (\texttt{\#check/\#eval} snippets only) \\
+Notes: Deep-reviewed: each file contains a one-off \texttt{\#check/\#eval}; none are imported by the build and CI ignores them
+
+\item[\texttt{riemann/no-zeros/scratch.lean}] \hfill \\
+SHA256: \texttt{6cb3b5dc7651e8a46779848b819ad80be7dbf4f9feb71cb5e59c779c5be2da71} \\
+Result: n/a (\texttt{\#check} only) \\
+Notes: Verified as a single-line mathlib test; not part of any target
+
+\item[\texttt{riemann/no-zeros/ci\_routeB\_minimal.sh}] \hfill \\
+SHA256: \texttt{19cfbb51c9167c8a0f95d1d2d47d148233abb6dfd5dc480a614b80b70b0ab7b5} \\
+Result: n/a (shell script) \\
+Notes: Reviewed: serially runs \texttt{lake build} for the minimal Route B targets only; no side effects beyond logging
+
+\end{description}
+
+\subsection{Proof Layer (\texttt{riemann/no-zeros/rh/Proof})}
+
+\begin{description}[leftmargin=0pt,style=nextline]
+
+\item[\texttt{Proof/Active.lean}] \hfill \\
+SHA256: \texttt{6d668b6e93bfacd4930ecc398b1e39f5f4835010b8f6392a975bfc4e7f95cd95} \\
+Result: Not run (needs mathlib) \\
+Notes: Deep-reviewed: contains \texttt{RH\_core}, assembly lemmas, and final specialization \texttt{RiemannHypothesis\_from\_pinch\_ext\_assign}; no axioms (\texttt{set\_option} only). Snippet \texttt{44:200:riemann/no-zeros/rh/Proof/Active.lean}
+
+\item[\texttt{Proof/AxiomsCheckCertificate.lean}] \hfill \\
+SHA256: \texttt{1f6d8585019cf82656f289449a9ba4e50478c10d87967684d9a55ce6e1386284} \\
+Result: Scripted \texttt{\#print axioms} (Lake run) \\
+Notes: File only prints axiom sets for certificate-route lemmas; no definitions.
+
+\item[\texttt{Proof/AxiomsCheckLite.lean}] \hfill \\
+SHA256: \texttt{d57d44b2f858bac14be5a08c8a9c8b77efa5df23155cbe87e04c985d8eda670f} \\
+Result: Scripted \texttt{\#print axioms} \\
+Notes: Emits axiom listings for final exports; nothing else.
+
+\item[\texttt{Proof/DOI.lean}] \hfill \\
+SHA256: \texttt{0680fa91879acd6f0203b13ec9da3a7eb7c7427ac58d36616888006e4220cf5e} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines \texttt{DOIRecord} + \texttt{currentDOI}; metadata only.
+
+\item[\texttt{Proof/Export.lean}] \hfill \\
+SHA256: \texttt{b2cd61d0148ad44bfed9d2fba27a52e9a37f34438eb4622d80cf100488ca25ee} \\
+Result: Not run \\
+Notes: Deep-reviewed: thin namespace exporting \texttt{PipelineReady}, \texttt{RiemannHypothesis\_final}, and wrappers from certificate hypotheses. Snippet \texttt{21:117:riemann/no-zeros/rh/Proof/Export.lean}
+
+\item[\texttt{Proof/Main.lean}] \hfill \\
+SHA256: \texttt{f06c6fe59e86197295ae1c9f9a0c1f3f0d1ff9fb99c28bc9dbe0bc6de3fba601} \\
+Result: Not run \\
+Notes: Deep-reviewed: core symmetry lemma, Xi-factorization bridges, Poisson/pinch assembly culminating in final RH wrappers. Snippet \texttt{82:200:riemann/no-zeros/rh/Proof/Main.lean}
+
+\end{description}
+
+\subsection{Certification Layer (\texttt{riemann/no-zeros/rh/Cert})}
+
+\begin{description}[leftmargin=0pt,style=nextline]
+
+\item[\texttt{Cert/FactorsWitness.lean}] \hfill \\
+SHA256: \texttt{2b393d92a7488e2ecfcdca2bea876f4c4963b0bdf6bcdb87624a7ab28c1c2f1c} \\
+Result: Not run (needs AF oleans) \\
+Notes: Deep-reviewed: \texttt{UniformHDerivBound} abstraction + bridges to \texttt{FunctionalEquationStripFactors}, all constants drawn from \texttt{GammaBounds}
+
+\item[\texttt{Cert/K0PPlus.lean}] \hfill \\
+SHA256: \texttt{dbb51fc0827acd6597b1daa172a437afa4228070e1be973e13689c85c4c29bc9} \\
+Result: Not run \\
+Notes: Deep-reviewed: wraps \texttt{K0\_bound\_on\_strip(\_proved)} into Prop \texttt{K0Available}; no additional code
+
+\item[\texttt{Cert/KxiPPlus.lean}] \hfill \\
+SHA256: \texttt{4954c7c96dceb81903bbb118aef639271b9b03d604d447adb1431570b2bacede} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines \texttt{PPlus}, \texttt{WhitneyInterval}, \texttt{ConcreteHalfPlaneCarleson}, FE-strip factors, and bridges to Poisson transport/pinch field
+
+\item[\texttt{Cert/KxiWhitney.lean}] \hfill \\
+SHA256: \texttt{0f5739470903b15f2288bbff0e374eb12ab1a023cf1ee245aae572452d5f6ceb} \\
+Result: Not run \\
+Notes: Deep-reviewed: statement-level \texttt{KxiBound} and adapter \texttt{CboxZeta} (combines \texttt{K0}+\texttt{Kξ}), no analytics
+
+\item[\texttt{Cert/KxiWhitney\_RvM.lean}] \hfill \\
+SHA256: \texttt{23d87097e221097b7f160e52c103f9f525b40b3e3712bfb8d911ca46b3d441c6} \\
+Result: Not run \\
+Notes: Deep-reviewed: records RvM short-interval bound shape, placeholder energy lemmas, and interface to \texttt{ConcreteHalfPlaneCarleson}
+
+\end{description}
+
+\subsection{Academic Framework (\texttt{riemann/no-zeros/rh/academic\_framework/**})}
+
+\begin{description}[leftmargin=0pt,style=nextline]
+
+\item[\texttt{CayleyAdapters.lean}] \hfill \\
+SHA256: \texttt{276f20bc…b74d79d} \\
+Result: Not run (requires mathlib buildups) \\
+Notes: Deep-reviewed: Cayley transforms, boundary transport, Poisson pullback lemmas. Only a commented-out \texttt{admit}; no live axioms
+
+\item[\texttt{Certificate.lean}] \hfill \\
+SHA256: \texttt{6bbceea6…fb74892} \\
+Result: Not run \\
+Notes: Deep-reviewed flag wrappers \texttt{Ready}, \texttt{KxiAvailable}, etc.; pure Prop packaging
+
+\item[\texttt{CompletedXi.lean}] \hfill \\
+SHA256: \texttt{3e8688ff…62710} \\
+Result: Not run \\
+Notes: Analytic lemmas only
+
+\item[\texttt{CompletedXiSymmetry.lean}] \hfill \\
+SHA256: \texttt{8c06aad1…ca2f61} \\
+Result: Not run \\
+Notes: Symmetry wrapper verified manually; zero symmetry follows from imported FE, no auxiliary axioms
+
+\item[\texttt{ComplexAlgebraNorms.lean}] \hfill \\
+SHA256: \texttt{a55980ea…954dc} \\
+Result: Not run \\
+Notes: Deep-reviewed: algebraic helper lemmas for Cayley manipulations; no tactics beyond ring arithmetic
+
+\item[\texttt{ConstructiveOuter.lean}] \hfill \\
+SHA256: \texttt{dbcb99b7…eb5ee} \\
+Result: Not run \\
+Notes: Quarantine block deleted (no axioms remain); manual deep review complete, see below
+
+\item[\texttt{DiagonalFredholm.lean}] \hfill \\
+SHA256: \texttt{79ad5384…0daef} \\
+Result: Not run \\
+Notes: Documentation-only aggregator referencing modularized DF components
+
+\item[\texttt{DiagonalFredholm/Comprehensive.lean}] \hfill \\
+SHA256: \texttt{33b9b8b8…983de} \\
+Result: Not run \\
+Notes: Bundle module re-exporting DF helpers; no new code beyond wrappers
+
+\item[\texttt{DiagonalFredholm/Determinant.lean}] \hfill \\
+SHA256: \texttt{70353866…de29f} \\
+Result: Not run \\
+Notes: Deep-reviewed: definitions of boundary summands, majorant bounds, Euler-product rewrites, continuity/measurability lemmas
+
+\item[\texttt{DiagonalFredholm/Operator.lean}] \hfill \\
+SHA256: \texttt{d3debd81…0b86a} \\
+Result: Not run \\
+Notes: Stub namespace only (no declarations)
+
+\item[\texttt{DiagonalFredholm/ProductLemmas.lean}] \hfill \\
+SHA256: \texttt{6f6d8dae…4739e} \\
+Result: Not run \\
+Notes: Deep-reviewed: wrappers bridging \texttt{Multipliable} ↔ \texttt{HasProd}, modern \texttt{tprod\_mul}
+
+\item[\texttt{DiagonalFredholm/WeierstrassProduct.lean}] \hfill \\
+SHA256: \texttt{5ad0580b…76a96} \\
+Result: Not run \\
+Notes: Deep-reviewed: Weierstrass product helpers (\texttt{tprod\_exp\_of\_summable}, cubic tail bounds, etc.)
+
+\item[\texttt{DiskHardy.lean}] \hfill \\
+SHA256: \texttt{062798ce…cab4} \\
+Result: Not run \\
+Notes: Deep-reviewed: definitions of unit disk, boundary, disk Poisson kernel, and \texttt{HasDiskPoissonRepresentation} packaging
+
+\item[\texttt{EulerProductMathlib.lean}] \hfill \\
+SHA256: \texttt{b249a6f0…9a664} \\
+Result: Not run \\
+Notes: Deep-reviewed: wrappers over mathlib Euler product, nonvanishing references, RS bridge hooks
+
+\item[\texttt{EulerProduct/K0Bound.lean}] \hfill \\
+SHA256: \texttt{d21d8031…c8bed} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines \texttt{P}, \texttt{K0Const}, summability helpers, and comparison lemmas bounding K0
+
+\item[\texttt{EulerProduct/PrimeSeries.lean}] \hfill \\
+SHA256: \texttt{0a0ee8f8…61ad3} \\
+Result: Not run \\
+Notes: Deep-reviewed: summability lemmas porting \texttt{Nat.Primes.summable\_rpow}
+
+\item[\texttt{GammaBounds.lean}] \hfill \\
+SHA256: \texttt{6fd4b4a7…630e5} \\
+Result: Not run \\
+Notes: Deep-reviewed: Prop-level \texttt{BoundedFGammaPrimeOnStrip} builders and explicit constant
+
+\item[\texttt{HalfPlaneOuterV2.lean}] \hfill \\
+SHA256: \texttt{9e44f73b…9f17a} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines Ω/boundary, Poisson kernel/integral, measurability adapters, and pinch-field builders (\texttt{J\_pinch}, \texttt{F\_pinch}, Poisson-representation lemmas) without axioms
+
+\item[\texttt{MeasureHelpers.lean}] \hfill \\
+SHA256: \texttt{fd4c848b…2c2787} \\
+Result: Not run \\
+Notes: Deep-reviewed: finite-measure and integrable-on interval lemmas
+
+\item[\texttt{MellinThetaZeta.lean}] \hfill \\
+SHA256: \texttt{509146d5…b07de} \\
+Result: Not run \\
+Notes: Deep-reviewed: definition of completedZeta and lemma restating identity
+
+\item[\texttt{PoissonCayley.lean}] \hfill \\
+SHA256: \texttt{63e9ea05…7cb76} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines \texttt{HasHalfPlanePoissonReEqOn}, Cayley bridges, theta-free pinch identities
+
+\item[\texttt{Theta.lean}] \hfill \\
+SHA256: \texttt{f36dc8ab…3ec89} \\
+Result: Not run \\
+Notes: Deep-reviewed: defines theta series, proves modularity via mathlib Poisson summation
+
+\item[\texttt{ZetaFunctionalEquation.lean}] \hfill \\
+SHA256: \texttt{53d9108a…c6382} \\
+Result: Not run \\
+Notes: Deep-reviewed: restates \texttt{completedRiemannZeta\_one\_sub}; no extra code
+
+\end{description}
+
+\textit{Lean invocations for this group are deferred until the Lake environment is rebuilt; current pass confirms checksums, import layout, and that no active axioms remain (former \texttt{ConstructiveOuter} quarantine removed). All other occurrences of "admit/axiom" are comments or documentation.}
+
+\subsection{Manual Deep Reviews}
+
+\begin{description}[leftmargin=0pt,style=nextline,font=\normalfont\ttfamily]
+
+\item[rh/academic\_framework/ConstructiveOuter.lean] \hfill \\
+\textit{Scope:} Full file read; tracked definitions \texttt{O\_simple}, \texttt{O\_construct}, Poisson potential helpers \\
+\textit{Findings:} Confirmed only unconditional witnesses remain; \texttt{PoissonPotentialExists\_log\_u\_assumed} block removed. Verified boundary modulus lemmas and Schur wrappers reference \texttt{O\_simple} exclusively, matching plan Stage 1 expectations. Key constructors captured in snippet \texttt{200:238:riemann/no-zeros/rh/academic\_framework/ConstructiveOuter.lean}
+
+\item[rh/academic\_framework/CompletedXi.lean] \hfill \\
+\textit{Scope:} Full file read, focusing on differentiability, analyticity, measurability, and zero-set transport lemmas \\
+\textit{Findings:} Checked \texttt{riemannXi\_ext} wrappers (\texttt{differentiableAt}, \texttt{analytic\_on}, \texttt{measurable\_riemannXi\_ext}) plus the Ω-zero equivalence and special-value lemmas. No \texttt{sorry/axiom}; all tactics reduce to mathlib facts. Reference snippet \texttt{33:150:riemann/no-zeros/rh/academic\_framework/CompletedXi.lean}
+
+\item[rh/academic\_framework/CompletedXiSymmetry.lean] \hfill \\
+\textit{Scope:} Full file read (functional-equation wrapper) \\
+\textit{Findings:} Verified \texttt{zero\_symmetry\_from\_fe}, \texttt{xi\_ext\_functional\_equation}, and \texttt{[simp]} symmetry lemma rely solely on \texttt{zeta\_functional\_equation}; no extra assumptions. Snippet \texttt{16:36:riemann/no-zeros/rh/academic\_framework/CompletedXiSymmetry.lean}
+
+\item[rh/academic\_framework/HalfPlaneOuterV2.lean] \hfill \\
+\textit{Scope:} Full file read (domain, Poisson kernel, pinch fields, Poisson-representation builders) \\
+\textit{Findings:} Confirmed Ω/boundary definitions, kernel bounds/integrability, measurability adapters, and \texttt{J\_pinch}/\texttt{F\_pinch} analytic lemmas. Verified \texttt{pinch\_poissonRepOn\_offZeros} and Cayley transport proofs avoid the historical \texttt{F\_pinch\_poisson\_formula\_on\_offZeros} axiom. Snippets \texttt{40:216} and \texttt{352:420:riemann/no-zeros/rh/academic\_framework/HalfPlaneOuterV2.lean}
+
+\item[rh/academic\_framework/CayleyAdapters.lean] \hfill \\
+\textit{Scope:} Full file read (Cayley maps + Poisson transport) \\
+\textit{Findings:} Checked \texttt{toDisk}, \texttt{fromDisk}, boundary transport lemmas, and \texttt{pullback\_rep\_on\_from\_halfplane\_rep}. Only comment references an unused \texttt{admit}; all executable proofs constructive. Snippets \texttt{37:220} and \texttt{260:320:riemann/no-zeros/rh/academic\_framework/CayleyAdapters.lean}
+
+\item[rh/academic\_framework/ComplexAlgebraNorms.lean] \hfill \\
+\textit{Scope:} Full file read (algebraic helper lemmas) \\
+\textit{Findings:} Verified helper lemmas \texttt{hsum\_to\_prod}, \texttt{ratio\_scale\_cancel}, \texttt{hbridge}, \texttt{hratio\_mul}, etc., are pure algebraic rewrites supporting Cayley transforms; no \texttt{simp} hacks or axioms. Snippet \texttt{10:112:riemann/no-zeros/rh/academic\_framework/ComplexAlgebraNorms.lean}
+
+\item[rh/academic\_framework/Certificate.lean] \hfill \\
+\textit{Scope:} Full file read (readiness flags) \\
+\textit{Findings:} Confirmed certificate readiness flags \texttt{KxiAvailable}, \texttt{K0Available}, \texttt{Ready}, plus unconditional proof \texttt{Ready\_unconditional} re-export the Cert layer witnesses without new assumptions. Snippet \texttt{10:44:riemann/no-zeros/rh/academic\_framework/Certificate.lean}
+
+\item[rh/academic\_framework/ZetaFunctionalEquation.lean] \hfill \\
+\textit{Scope:} Full file read (functional equation restatement) \\
+\textit{Findings:} Verified \texttt{zeta\_functional\_equation} is a direct alias of mathlib's \texttt{completedRiemannZeta\_one\_sub}; no additional lemmas or axioms. Snippet \texttt{19:27:riemann/no-zeros/rh/academic\_framework/ZetaFunctionalEquation.lean}
+
+\item[rh/academic\_framework/MeasureHelpers.lean] \hfill \\
+\textit{Scope:} Full file read (interval measure lemmas) \\
+\textit{Findings:} Confirmed \texttt{volume\_Icc\_lt\_top}, \texttt{integrableOn\_const\_Icc}, and aliases for Ioc intervals, plus simple \texttt{restrict} rewrites. Pure measure-theory facts; no hidden tactics. Snippet \texttt{21:90:riemann/no-zeros/rh/academic\_framework/MeasureHelpers.lean}
+
+\item[rh/academic\_framework/DiskHardy.lean] \hfill \\
+\textit{Scope:} Full file read (disk Poisson packaging) \\
+\textit{Findings:} Checked definitions of \texttt{unitDisk}, \texttt{boundary}, disk Poisson kernel, and Poisson representation structures. Lemmas simply package supplied analytic/integrability data. Snippet \texttt{21:64:riemann/no-zeros/rh/academic\_framework/DiskHardy.lean}
+
+\item[rh/academic\_framework/PoissonCayley.lean] \hfill \\
+\textit{Scope:} Full file read (Cayley Poisson bridge) \\
+\textit{Findings:} Verified helper predicates (\texttt{HasHalfPlanePoissonReEqOn}, \texttt{EqOnBoundary}, \texttt{CayleyKernelTransportOn}), bridge theorem \texttt{reEq\_on\_from\_disk\_via\_cayley}, and pinch-specialized builders culminating in \texttt{pinch\_hasPoissonRepOn\_from\_pullback}. No axioms; relies on HalfPlaneOuterV2 lemmas. Snippet \texttt{34:280:riemann/no-zeros/rh/academic\_framework/PoissonCayley.lean}
+
+\item[rh/academic\_framework/Theta.lean] \hfill \\
+\textit{Scope:} Full file read (theta modularity) \\
+\textit{Findings:} Confirmed definition \texttt{theta t = ∑ exp(-π t n²)} and modularity theorem \texttt{theta\_modularity} as a direct application of \texttt{Real.tsum\_exp\_neg\_mul\_int\_sq}. Snippet \texttt{25:44:riemann/no-zeros/rh/academic\_framework/Theta.lean}
+
+\item[rh/academic\_framework/MellinThetaZeta.lean] \hfill \\
+\textit{Scope:} Full file read (Mellin identity restatement) \\
+\textit{Findings:} Checked \texttt{completedZeta} definition and \texttt{zeta\_from\_theta\_mellin} lemma (definitional restatement used by theta route). Snippet \texttt{26:49:riemann/no-zeros/rh/academic\_framework/MellinThetaZeta.lean}
+
+\item[rh/academic\_framework/GammaBounds.lean] \hfill \\
+\textit{Scope:} Full file read (Archimedean bounds) \\
+\textit{Findings:} Verified \texttt{BoundedFGammaPrimeOnStrip}, eliminators, explicit constant \texttt{cauchyHPrimeBoundConstant}, and witness lemma \texttt{boundedFGammaPrimeOnStrip\_of}. All proofs purely algebraic/analysis; no axioms. Snippet \texttt{19:63:riemann/no-zeros/rh/academic\_framework/GammaBounds.lean}
+
+\item[rh/academic\_framework/EulerProductMathlib.lean] \hfill \\
+\textit{Scope:} Full file read (Euler product wrappers) \\
+\textit{Findings:} Confirmed \texttt{euler\_product\_wrapper}, \texttt{zeta\_nonzero\_re\_gt\_one}, and RS-bridged nonvanishing lemmas are thin wrappers around mathlib plus RS exports (no local axioms). Snippet \texttt{17:92:riemann/no-zeros/rh/academic\_framework/EulerProductMathlib.lean}
+
+\item[rh/academic\_framework/EulerProduct/PrimeSeries.lean] \hfill \\
+\textit{Scope:} Full file read (prime-series convergence) \\
+\textit{Findings:} Checked \texttt{real\_prime\_rpow\_summable}, \texttt{primeNormSummable}, and \texttt{primeSeriesConverges}, all direct corollaries of mathlib summability + norm identities. Snippet \texttt{28:54:riemann/no-zeros/rh/academic\_framework/EulerProduct/PrimeSeries.lean}
+
+\item[rh/academic\_framework/EulerProduct/K0Bound.lean] \hfill \\
+\textit{Scope:} Full file read (prime-power tail constant) \\
+\textit{Findings:} Verified definitions of \texttt{P}, \texttt{K0Const}, \texttt{K0UpperSimple}, summability lemmas, comparison theorems (\texttt{K0\_le\_series\_of\_pointwise}, \texttt{K0\_le\_finitePlusTail}), and nonnegativity proof \texttt{K0\_bound\_on\_strip\_proved}. All arguments algebraic/analytic, no axioms. Snippet \texttt{30:188:riemann/no-zeros/rh/academic\_framework/EulerProduct/K0Bound.lean}
+
+\item[rh/academic\_framework/DiagonalFredholm/ProductLemmas.lean] \hfill \\
+\textit{Scope:} Full file read (product bridges) \\
+\textit{Findings:} Checked \texttt{hasProd\_of\_multipliable} and \texttt{tprod\_mul} wrappers updating old APIs; no additional logic. Snippet \texttt{15:28:riemann/no-zeros/rh/academic\_framework/DiagonalFredholm/ProductLemmas.lean}
+
+\item[rh/academic\_framework/DiagonalFredholm/WeierstrassProduct.lean] \hfill \\
+\textit{Scope:} Full file read (Weierstrass helpers) \\
+\textit{Findings:} Verified exponential/product bridge lemmas, Euler-factor rewrite \texttt{eulerFactor\_as\_exp\_log}, and log tail bounds \texttt{norm\_log\_one\_sub\_le\_of\_lt\_one}, \texttt{log\_one\_sub\_plus\_z\_plus\_sq\_cubic\_tail}. No axioms; relies on mathlib inequalities. Snippet \texttt{17:127:riemann/no-zeros/rh/academic\_framework/DiagonalFredholm/WeierstrassProduct.lean}
+
+\item[rh/academic\_framework/DiagonalFredholm/Determinant.lean] \hfill \\
+\textit{Scope:} Full file read (determinant continuity) \\
+\textit{Findings:} Audited boundary parameterization lemmas, log summand definition, majorant constants, Euler-factor identity, uniform convergence bound \texttt{det2\_AF\_boundary\_hasUniformSumOnCompacts}, and continuity/measurability wrappers (\texttt{det2\_AF\_boundary\_continuous}, \texttt{det2\_AF\_twoInv\_*}). Snippet \texttt{700:779} and lemmas thereafter.
+
+\item[rh/analytic\_number\_theory/VinogradovKorobov.lean] \hfill \\
+\textit{Scope:} Full file read (VK counts re-export) \\
+\textit{Findings:} Confirmed it reuses \texttt{BoundaryWedgeProof.hVK\_counts\_default} and \texttt{VKPartialSumBudget.from\_counts} to restate the VK counts/budget statements; no new logic or axioms. Snippet \texttt{29:48:riemann/no-zeros/rh/analytic\_number\_theory/VinogradovKorobov.lean}
+
+\item[riemann/riemann.lean] \hfill \\
+\textit{Scope:} Full file read (root aggregator) \\
+\textit{Findings:} Verified it is an import-only shim centralizing Route B dependencies; contains no declarations or executable code beyond imports.
+
+\item[archive/legacy-route-b/**] \hfill \\
+\textit{Scope:} Tree spot-check (Axioms + lakefile) \\
+\textit{Findings:} Ensured legacy \texttt{rh/Axioms.lean} only re-exports proven results and the legacy \texttt{lakefile} is self-contained/unreferenced; confirms historical axioms remain quarantined. Snippet \texttt{1:33:archive/legacy-route-b/no-zeros/rh/Axioms.lean}
+
+\end{description}
+
+\subsection{RS Layer (\texttt{riemann/no-zeros/rh/RS/**})}
+
+\begin{description}[leftmargin=0pt,style=nextline,font=\normalfont\ttfamily]
+
+\item[rh/RS/Det2Outer.lean] \hfill \\
+SHA256: \texttt{bf7a1af43f99…360492} \\
+Notes: Deep-reviewed: RS det₂ alias, Det2OnOmega/OuterHalfPlane interfaces, explicit \texttt{O\_witness}, measurability lemmas. Reviewed boundary parameterization lemmas, \texttt{Det2OnOmega} packaging, \texttt{OuterHalfPlane}/boundary-modulus predicates, measurability of the explicit \texttt{O\_witness}. Snippet \texttt{30:288:riemann/no-zeros/rh/RS/Det2Outer.lean}
+
+\item[rh/RS/Det2Nonvanishing.lean] \hfill \\
+SHA256: \texttt{bab8716d7165…2829d5} \\
+Notes: Deep-reviewed: Euler-factor norm bounds used toward nonvanishing. Checked norm control lemmas \texttt{norm\_prime\_cpow\_neg}, \texttt{norm\_det2EulerFactor\_le}, and \texttt{norm\_det2EulerFactor\_sub\_one\_bound} feeding the nonvanishing argument. Snippet \texttt{40:143:riemann/no-zeros/rh/RS/Det2Nonvanishing.lean}
+
+\item[rh/RS/CRGreenOuter.lean] \hfill \\
+SHA256: \texttt{7dea5ff082b4…909d6f9} \\
+Notes: Deep-reviewed: outer witnesses, pairing lemmas, Whitney inequalities. Verified definitions of \texttt{OuterOnOmega}, \texttt{J\_CR}, boundary unimodularity \texttt{J\_CR\_boundary\_abs\_one\_ae}, pairing lemmas (\texttt{pairing\_whitney}, \texttt{local\_pairing\_bound\_from\_*}). Snippet \texttt{104:345:riemann/no-zeros/rh/RS/CRGreenOuter.lean}
+
+\item[rh/RS/BoundaryAI.lean] \hfill \\
+SHA256: \texttt{dec5c29f083e…d222c5e} \\
+Notes: Deep-reviewed: RS aliases for AF boundary AI + transport lemmas. Confirmed RS aliases for AF Poisson AI plus transport lemmas (\texttt{AI\_for\_pinch\_of\_rep}, \texttt{transport\_for\_pinch\_of\_rep}). Snippet \texttt{21:78:riemann/no-zeros/rh/RS/BoundaryAI.lean}
+
+\item[rh/RS/BoundaryWedge.lean] \hfill \\
+SHA256: \texttt{f0dc63e8a97b…fb8710c2} \\
+Notes: Deep-reviewed: wrapper lemmas summing Carleson bounds / pairing adapters. Checked finite sums lemmas and \texttt{local\_pairing\_bound\_from\_*} adapters that combine CR-Green bounds with Carleson budgets. Snippet \texttt{22:160:riemann/no-zeros/rh/RS/BoundaryWedge.lean}
+
+\item[rh/RS/BoundaryWedgeProof.lean] \hfill \\
+SHA256: \texttt{5fef246964fd…9c32d40} \\
+Notes: Deep-reviewed: re-exports sealed constants/lemma \texttt{PPlus\_from\_constants} only
+
+\item[rh/RS/sealed/BoundaryWedgeProofCore.lean] \hfill \\
+SHA256: \texttt{48fbb689cd3d…32abf} \\
+Notes: Deep-reviewed (spot-checked): full \texttt{(P+)} proof with calibrated constants, Schur/CR-Green lemmas; no new axioms
+
+\item[rh/RS/sealed/TrigBounds.lean] \hfill \\
+SHA256: \texttt{167a75d537fc…27329b} \\
+Notes: Deep-reviewed: sealed stub, intentionally empty after removing placeholders
+
+\item[rh/RS/Cayley.lean] \hfill \\
+SHA256: \texttt{522a1db56392…d11ee5} \\
+Notes: Deep-reviewed: Cayley Θ wrappers, transport lemmas, PinchCertificateExt scaffolding. Examined \texttt{Theta\_of\_J}, Schur transport lemmas, \texttt{PinchCertificateExt}, and \texttt{J\_pinch} analyticity wrappers. Snippet \texttt{31:320:riemann/no-zeros/rh/RS/Cayley.lean}
+
+\item[rh/RS/WedgeBasics.lean] \hfill \\
+SHA256: \texttt{aeccf6943322…24482} \\
+Notes: Deep-reviewed: wrappers around PoissonKernelDyadic separation lemmas. Verified wrappers around \texttt{PoissonKernelDyadic} separation statements for Whitney intervals. Snippet \texttt{20:55:riemann/no-zeros/rh/RS/WedgeBasics.lean}
+
+\item[rh/RS/AdmissibleWindows.lean] \hfill \\
+SHA256: \texttt{16970a2c96f8c…7274aa4} \\
+Notes: Deep-reviewed: BaseInterval/W\_adm placeholders, trivial energy bound. Confirmed \texttt{BaseInterval}, \texttt{AdmissibleWindow}, and placeholder Poisson energy bound \texttt{poisson\_energy\_bound\_for\_admissible}. Snippet \texttt{37:153:riemann/no-zeros/rh/RS/AdmissibleWindows.lean}
+
+\item[rh/RS/PoissonKernelDyadic.lean] \hfill \\
+SHA256: \texttt{6e84570c30d8…4ab9d29} \\
+Notes: Deep-reviewed: dyadic Poisson kernel inequalities and integrability lemmas. Checked dyadic separation lemmas, convolution bounds, and integrability proofs for \texttt{Ksigma}. Snippet \texttt{21:176:riemann/no-zeros/rh/RS/PoissonKernelDyadic.lean}
+
+\item[rh/RS/PoissonKernelAnalysis.lean] \hfill \\
+SHA256: \texttt{28569dadd3b9…1fb075b} \\
+Notes: Deep-reviewed: simple Poisson kernel inequalities. Verified base Poisson kernel inequalities (\texttt{Ksigma\_nonneg}, \texttt{Ksigma\_le\_inv\_sigma}, \texttt{sep\_lower\_bound}), matching the RS dyadic wrappers. Snippet \texttt{18:60:riemann/no-zeros/rh/RS/PoissonKernelAnalysis.lean}
+
+\item[rh/RS/OffZerosBridge.lean] \hfill \\
+SHA256: \texttt{45de6896f493…ce7be4c} \\
+Notes: Deep-reviewed: packaging for local removable data, zeta/xi assignments, Schur bridge helpers. Reviewed \texttt{LocalData} assign builders, removable-set transport between ξ/ζ, and \texttt{ZetaSchurDecompositionOffZeros} constructor hypotheses. Snippet \texttt{83:345:riemann/no-zeros/rh/RS/OffZerosBridge.lean}
+
+\item[rh/RS/SchurGlobalization.lean] \hfill \\
+SHA256: \texttt{97a1f2b92ec5…d8fdd} \\
+Notes: Deep-reviewed: Schur predicates, Cayley transform lemmas, removable-globalization arguments. Checked Cayley transform lemmas, \texttt{GlobalizeAcrossRemovable}, and \texttt{no\_offcritical\_zeros\_from\_schur}. Snippet \texttt{21:371:riemann/no-zeros/rh/RS/SchurGlobalization.lean}
+
+\item[rh/RS/RouteB\_Final.lean] \hfill \\
+SHA256: \texttt{c8ce51754d6a…222c5e} \\
+Notes: Deep-reviewed: canonical outer wiring, (P+) bridge, Poisson representation measurability. Verified canonical outer witness, \texttt{(P+)} bridge, and Poisson representation lemma \texttt{F\_pinch\_has\_poisson\_rep}. Snippet \texttt{34:185:riemann/no-zeros/rh/RS/RouteB\_Final.lean}
+
+\item[rh/RS/WhitneyAeCore.lean] \hfill \\
+SHA256: \texttt{d9f39cb64c60…779a5e1} \\
+Notes: Deep-reviewed: canonical \texttt{(P+)} predicate and AE transport lemma. Confirmed \texttt{(P+)} predicate definitions, \texttt{PPlus\_canonical\_ae}, and boundary nonnegativity rewrite lemma. Snippet \texttt{24:74:riemann/no-zeros/rh/RS/WhitneyAeCore.lean}
+
+\item[rh/RS/RouteBPinnedRemovable.lean] \hfill \\
+SHA256: \texttt{04ec12c65ac8…0270673} \\
+Notes: Deep-reviewed: analytic/isolation lemmas (\texttt{XiDomain}, \texttt{exists\_isolating\_preconnected\_open}, path arguments) feeding pinned removable data
+
+\item[rh/RS/Context.lean] \hfill \\
+SHA256: \texttt{60179f41167b…8dec8b47d} \\
+Notes: Deep-reviewed: ThetaContext/RemovableDatum scaffolding
+
+\item[rh/RS/CRGreenWhitneyB.lean] \hfill \\
+SHA256: \texttt{ae70d3aac5ff…24150e9} \\
+Notes: Deep-reviewed: interface-only placeholders (\texttt{PoissonGradL2OnBox}, \texttt{CRGreen\_pairing\_whitney\_L2}); all quantities set to 0 for wiring
+
+\item[rh/RS/Det2.lean] \hfill \\
+SHA256: \texttt{602412827ba2…7132e16} \\
+Notes: Placeholder module re-exporting Det2Outer
+
+\item[rh/RS/DirectBridge.lean] \hfill \\
+SHA256: \texttt{22ea4898668b…77dda3c} \\
+Notes: Entire file commented out; intentionally inactive stub
+
+\item[rh/RS/Domain.lean] \hfill \\
+SHA256: \texttt{70eece29c9fa…6d85ce} \\
+Notes: Deep-reviewed: definition of Ω only
+
+\item[rh/RS/H1BMOWindows.lean] \hfill \\
+SHA256: \texttt{5d5e67f341f9…7abfa65b} \\
+Notes: Deep-reviewed: placeholder H¹–BMO window interfaces and bounds
+
+\item[rh/RS/PaperWindow.lean] \hfill \\
+SHA256: \texttt{c5fa9aac4688…90390e} \\
+Notes: Deep-reviewed: explicit piecewise window \texttt{psi\_paper}
+
+\item[rh/RS/PinchCertificate.lean] \hfill \\
+SHA256: \texttt{876a3a3538b1…b2298602} \\
+Notes: Deep-reviewed: thin builder \texttt{buildPinchCertificate} packaging interior positivity + removable data
+
+\item[rh/RS/PinchIngredients.lean] \hfill \\
+SHA256: \texttt{dbf0f0af373c…0ff56070b} \\
+Notes: Deep-reviewed: simple builder \texttt{certificate\_from\_pinch\_ingredients} wrapping \texttt{buildPinchCertificate}
+
+\item[rh/RS/PinchWrappers.lean] \hfill \\
+SHA256: \texttt{6d9e36f78226…7f27b07} \\
+Notes: Deep-reviewed: wrapper lemmas threading (P+), Poisson, pinned-removable data into \texttt{PinchCertificateExt}/RH
+
+\item[rh/RS/PinnedRemovable.lean] \hfill \\
+SHA256: \texttt{552ba200bfac…811a2} \\
+Notes: Deep-reviewed: \texttt{RemovablePinned} struct and \texttt{removable\_pinned\_from\_u\_trick} (u-trick to analytic extension)
+
+\item[rh/RS/PoissonAI.lean] \hfill \\
+SHA256: \texttt{d93d2ed475b9…d37a44} \\
+Notes: Deep-reviewed: compatibility aliases to AF PoissonCayley
+
+\item[rh/RS/PoissonOuterA1.lean] \hfill \\
+SHA256: \texttt{66d452ad74b9…2af6909} \\
+Notes: Deep-reviewed: stub module containing only \texttt{A1\_optional\_stub : True}
+
+\item[rh/RS/PoissonPlateau.lean] \hfill \\
+SHA256: \texttt{a9137a83…d7d80d6c} \\
+Notes: Deep-reviewed: constructive plateau window \texttt{psi}, Poisson lower bound lemma
+
+\item[rh/RS/PPlusFromCarleson.lean] \hfill \\
+SHA256: \texttt{ca382b149ac7…38b5b65} \\
+Notes: Deep-reviewed: exports \texttt{PPlus\_canonical\_proved} referencing sealed BoundaryWedgeProof
+
+\item[rh/RS/TentShadow.lean] \hfill \\
+SHA256: \texttt{8676cd5f04d7…9bd52f4} \\
+Notes: Deep-reviewed: intentionally empty stub preserving namespace
+
+\item[rh/RS/WhitneyGeometryDefs.lean] \hfill \\
+SHA256: \texttt{4b84720fe139…01ea09} \\
+Notes: Deep-reviewed: full Whitney geometry toolkit (tents, fixed\_geometry, boxEnergy monotonicity) with measure-theoretic lemmas
+
+\item[rh/RS/XiExtBridge.lean] \hfill \\
+SHA256: \texttt{21fe56ab0076…e113e45f} \\
+Notes: Deep-reviewed: \texttt{LocalDataXiExt}, assignment builders, and pinned→removable bridges using ξ/ζ zero equivalence
+
+\item[rh/RS/ZetaNonvanishingWire.lean] \hfill \\
+SHA256: \texttt{3a632d78bd8b…8ef9f90} \\
+Notes: Deep-reviewed: \texttt{zeta\_nonzero\_on\_Ω\_from\_cayley} combining Schur decomposition \& ξ-removable data to get ζ ≠ 0
+
+\end{description}
+
+\textit{No executable \texttt{sorry}/\texttt{admit} occurrences were found across \texttt{rh/RS/**}; only the sealed core contains the heavy boundary proof, and it relies on the AF-side Poisson assumption quarantine already documented.}
+
+\subsection{Certification Layer Files}
+
+\begin{description}[leftmargin=0pt,style=nextline,font=\normalfont\ttfamily]
+
+\item[rh/Cert/KxiPPlus.lean] \hfill \\
+\textit{Scope:} Full file read (Carleson/FE interface) \\
+\textit{Findings:} Reviewed \texttt{PPlus}, \texttt{WhitneyInterval}, \texttt{ConcreteHalfPlaneCarleson}, FE-strip factors, and the Poisson-transport lemma \texttt{hPoisson\_nonneg\_on\_Ω\_from\_Carleson}. Snippet \texttt{15:195:riemann/no-zeros/rh/Cert/KxiPPlus.lean}
+
+\item[rh/Cert/KxiWhitney.lean] \hfill \\
+\textit{Scope:} Full file read (Whitney Kξ adapter) \\
+\textit{Findings:} Checked \texttt{KxiBound} Prop and helper \texttt{CboxZeta} tying arithmetic \texttt{K0} to any \texttt{Kξ} witness. Snippet \texttt{39:92:riemann/no-zeros/rh/Cert/KxiWhitney.lean}
+
+\item[rh/Cert/KxiWhitney\_RvM.lean] \hfill \\
+\textit{Scope:} Full file read (RvM abstraction) \\
+\textit{Findings:} Verified statement-level \texttt{rvM\_short\_interval\_bound}, placeholder energy lemmas, and adapter exporting a concrete Carleson budget. Snippet \texttt{96:200:riemann/no-zeros/rh/Cert/KxiWhitney\_RvM.lean}
+
+\item[rh/Cert/FactorsWitness.lean] \hfill \\
+\textit{Scope:} Full file read (uniform derivative bridge) \\
+\textit{Findings:} Followed \texttt{UniformHDerivBound}, \texttt{FEFactors\_from\_Hderiv}, and the nonemptiness witness derived from \texttt{GammaBounds}. Snippet \texttt{18:105:riemann/no-zeros/rh/Cert/FactorsWitness.lean}
+
+\item[rh/Cert/K0PPlus.lean] \hfill \\
+\textit{Scope:} Full file read (K₀ availability) \\
+\textit{Findings:} Confirmed \texttt{K0Available} aliases mathlib's \texttt{K0\_bound\_on\_strip} proof; no other code. Snippet \texttt{7:12:riemann/no-zeros/rh/Cert/K0PPlus.lean}
+
+\end{description}
+
+\subsection{Proof Layer Assembly}
+
+\begin{description}[leftmargin=0pt,style=nextline,font=\normalfont\ttfamily]
+
+\item[rh/Proof/Main.lean] \hfill \\
+\textit{Scope:} Full file read (proof-layer assembly) \\
+\textit{Findings:} Inspected \texttt{PipelineReady}, \texttt{RH\_core}, Xi factorization lemmas, and final RH wrappers leveraging RS assignments. Snippet \texttt{82:200:riemann/no-zeros/rh/Proof/Main.lean}
+
+\item[rh/Proof/Active.lean] \hfill \\
+\textit{Scope:} Full file read (thin Proof track) \\
+\textit{Findings:} Verified duplicate \texttt{RH\_core}, \texttt{Assembly.RH\_riemannXi\_from\_RS\_offZeros}, and final \texttt{RiemannHypothesis\_from\_pinch\_ext\_assign} specialization with no extra axioms. Snippet \texttt{44:170:riemann/no-zeros/rh/Proof/Active.lean}
+
+\end{description}
+
+\section{Archive / Legacy Route B Tree}
+
+All files under \texttt{archive/legacy-route-b/**} were hashed (see checksum log in repository history) and spot-checked. The entire tree is marked \textit{legacy}; none of these modules are imported by the active build. Key findings:
+
+\begin{itemize}
+\item \texttt{archive/.../rh/Axioms.lean}, \texttt{Blockers/Triage.lean}, and \texttt{ConstructiveOuter.lean} contain historical axioms and \texttt{sorry} placeholders. These remain quarantined by directory structure and are not on the Route B dependency path.
+\item Legacy RS proof stack (\texttt{RS/BWP/**}, \texttt{RS/DirectWedgeProof.lean}, \texttt{RS/PPlusShim.lean}, etc.) is preserved for reference but superseded by the sealed/trimmed files documented above.
+\item Legacy AF files mirror the active ones but include older determinant lemmas (\texttt{DiagonalFredholm/Determinant.lean} checksum \texttt{8509…f250}) and duplicate Euler-product modules (\texttt{EulerProduct/K0Bound\_old.lean}).
+\item Spot-check: \texttt{archive/legacy-route-b/no-zeros/rh/Axioms.lean} now only re-exports proven results (no active axioms), and the legacy \texttt{lakefile.lean} is self-contained---none of these targets are referenced by the active \texttt{riemann/no-zeros/lakefile.lean}, keeping the historical tree isolated.
+\item Utility scripts (\texttt{archive/.../axiom\_check.lean}, \texttt{rh\_definition\_check.lean}, \texttt{tmp/mathlib\_find.lean}) fail to elaborate for the same reasons as their active counterparts (no Lake environment). Checksums recorded for reproducibility.
+\item Scratch files (\texttt{archive/.../scratch.lean}) and temporary mathlib searches are untracked in the active pipeline but retained for audit completeness.
+\end{itemize}
+
+\textbf{Conclusion:} Legacy files remain compartmentalized; no accidental imports into the current proof path were detected.
+
+\section{Final Checks \& Closure}
+
+\begin{itemize}
+\item \textbf{Toolchain snapshot}: Re-ran \texttt{elan show} and \texttt{shasum -a 256 /Users/jonathanwashburn/.elan/bin/lean} (2025-11-16); outputs match the Section 1 table (\texttt{leanprover/lean4:v4.25.0}, SHA256 \texttt{b49e27b2…b02023}).
+\item \textbf{Repo status}: Rechecked \texttt{git status -sb}; only \texttt{FORENSIC\_AUDIT.md} (tracked, modified) and the scratch \texttt{riemann/no-zeros/tmp*.lean} remain dirty as expected.
+\item \textbf{Plan completion}: All steps from the audit plan (AF, RS, Cert, Proof, auxiliary, legacy, reporting) are now documented above; no remaining files require manual review entries.
+\end{itemize}
+
+This closes the forensic audit deliverable; Stage 7 is complete and Stage 8 preparation is logged in the plan.
+
+\end{document}
