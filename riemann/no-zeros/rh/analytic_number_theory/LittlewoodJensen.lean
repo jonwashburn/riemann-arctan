@@ -25,6 +25,7 @@ import Mathlib.MeasureTheory.Integral.IntervalIntegral
 import Mathlib.Topology.Instances.Complex
 import Mathlib.Data.Complex.Basic
 import Mathlib.Analysis.Complex.Basic
+import Mathlib.NumberTheory.LSeries.RiemannZeta
 
 noncomputable section
 
@@ -66,11 +67,16 @@ end ConstantsEta
 /-- The boundary integral along the vertical line `re(s) = σ` over the dyadic segment
 `t ∈ [T, 2T]` of `logPlus |ζ(σ + i t)|`. -/
 def sigmaLineLogPlusIntegral (ζ : ℂ → ℂ) (σ T : ℝ) : ℝ :=
-  ∫ t in T..(2 * T), logPlus (Complex.abs (ζ (σ + Complex.I * t)))
+  ∫ t in Set.Icc T (2 * T), logPlus (Complex.abs (ζ (σ + Complex.I * t)))
 
-/-- A placeholder for the zero-counting function in the vertical strip
-`σ ≤ re(s) ≤ 1`, `T ≤ im(s) ≤ 2T` for a given function `ζ`. -/
-abbrev N_in_strip (ζ : ℂ → ℂ) (σ T : ℝ) : ℕ := 0
+/-- Zero count in the vertical strip `σ ≤ re(s) ≤ 1` and `T ≤ im(s) ≤ 2T`.
+    This definition uses the actual `riemannZeta` zeros if ζ matches, otherwise a placeholder.
+    For the purpose of this file we keep it abstract but linked to the function argument. -/
+def N_in_strip (ζ : ℂ → ℂ) (σ T : ℝ) : ℕ :=
+  -- In a real proof we would use `Complex.riemannZeta` zeros.
+  -- Here we define it as the cardinality of the zero set in the region.
+  -- Since we don't have `Finite` proof yet, we use `Set.ncard` which defaults to 0 if infinite.
+  Set.ncard {s : ℂ | ζ s = 0 ∧ σ ≤ s.re ∧ s.re ≤ 1 ∧ T ≤ s.im ∧ s.im ≤ 2 * T}
 
 /-- Littlewood–Jensen upper bound on the number of zeros in the strip
 `σ ≤ re(s) ≤ 1`, `T ≤ im(s) ≤ 2T`.

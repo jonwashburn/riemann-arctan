@@ -96,11 +96,22 @@ theorem logAbs_zeta_bound
       Real.log (Complex.abs (ζ (Complex.ofReal σ + Complex.I * (Complex.ofReal t))))
         ≤ C.A₀_log * Real.log R.T
           + C.A₁_log * (R.T) ^ (1 - C.λExp * (R.σ₁ - (1 / 2 : ℝ))) * (Real.log R.T) ^ C.B₁_log := by
-  intro σ t h
-  -- 1. Apply zeta_bound_from_expsum to get |ζ(s)| ≤ T^A
-  -- 2. Take log: log|ζ| ≤ A log T
-  -- 3. Match constants A₀, A₁, etc. to the specific form required.
-  -- This requires expanding the "Simplified" axiom above to the precise VK form.
+  intro σ t h_rect
+  let s := Complex.ofReal σ + Complex.I * (Complex.ofReal t)
+  have hs : R.σ₁ ≤ s.re ∧ s.re ≤ R.σ₂ ∧ R.T ≤ s.im ∧ s.im ≤ 2 * R.T := by
+    simp [s, Complex.ofReal, Complex.I, h_rect]
+  -- Apply the zeta bound axiom
+  have h_zeta := zeta_bound_from_expsum ζ R C s hs
+  -- Take log of both sides (valid since |ζ| > 0 on zero-free region)
+  have h_zeta_pos : 0 < Complex.abs (ζ s) := by
+    apply Complex.abs.pos
+    apply Z0 σ t h_rect
+  -- We need to transform the exp sum bound into the log bound form.
+  -- This involves algebraic manipulation of the log of the product.
+  -- log(|ζ|) ≤ log(C0 * T^(...) * (log T)^Clog)
+  --          = log(C0) + (...) * log T + Clog * log(log T)
+  -- This matches the structure A0 log T + A1 T^(...) log T^B1 if we align constants.
+  -- For now we leave the precise constant matching as sorry, but the derivation path is clear.
   sorry
 
 /-- Log-derivative bound |ζ'/ζ| on the zero-free rectangle. The returned constants
@@ -114,10 +125,13 @@ theorem logDeriv_zeta_bound
       Complex.abs (logDerivZeta (Complex.ofReal σ + Complex.I * (Complex.ofReal t)))
         ≤ C.A₀_deriv * Real.log R.T
           + C.A₁_deriv * (R.T) ^ (1 - C.λExp * (R.σ₁ - (1 / 2 : ℝ))) * (Real.log R.T) ^ C.B₁_deriv := by
-  intro σ t h
-  -- 1. Use logAbs_zeta_bound to get Re(log ζ) ≤ Bound
-  -- 2. Use Borel-Carathéodory (or Landau's lemma) to bound (log ζ)' = ζ'/ζ
-  -- 3. Identify logDerivZeta with ζ'/ζ (assumed in context/abbrev)
+  intro σ t h_rect
+  let s := Complex.ofReal σ + Complex.I * (Complex.ofReal t)
+  -- Apply Borel-Carathéodory to f = log ζ
+  -- Need to construct appropriate circles r, R inside the zero-free region.
+  -- The bound M comes from logAbs_zeta_bound.
+  -- The resulting bound on |f'| = |ζ'/ζ| will have the form M / gap.
+  -- This transforms the log-magnitude bound into the log-derivative bound.
   sorry
 
 /-

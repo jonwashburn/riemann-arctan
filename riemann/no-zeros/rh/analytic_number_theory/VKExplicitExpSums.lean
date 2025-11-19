@@ -198,20 +198,35 @@ theorem expSum_bound_uniform
   induction h_valid with
   | trivial =>
     intro P x t hx hP ht
-    -- Base case: Trivial bound
-    -- We invoke the atomic axiom for (0,1)
-    -- Note: Simplification needed to match exact term structure
-    sorry
+    -- Base case: Trivial bound (0, 1)
+    -- The atomic axiom gives the core term x^(1 - σ).
+    -- The (1 + t/x)^0 factor is 1.
+    -- The pair factor is (1 + Cpair * 1).
+    -- We assume Cpair ≥ 0, so 1 ≤ 1 + Cpair.
+    -- This makes the RHS of atomic_bound_trivial smaller than the target, satisfying the inequality.
+    have h_atomic := atomic_bound_trivial bounds t0 ht0 P hx hP ht
+    apply le_trans h_atomic
+    gcongr
+    -- Remaining algebraic simplification:
+    -- x^(1-σ) * (log x)^Clog ≤ x^(1-σ) * (log x)^Clog * (1 + Cpair)
+    apply one_le_mul_of_one_le_of_one_le (le_rfl)
+    apply le_add_of_nonneg_right
+    exact mul_nonneg bounds.hCpair (by norm_num)
   | processA ep' h_ep' ih =>
     intro P x t hx hP ht
-    -- Inductive step A
-    -- Invoke atomic_process_A using ih
-    sorry
+    -- Inductive step A: (κ, λ) -> A(κ, λ)
+    -- The atomic axiom atomic_process_A transforms the bound for ep' to the bound for A(ep').
+    -- We need to match the specific algebraic form of A(ep') to the target goal.
+    -- The axiom provides the bound with the correct exponents for x and (1+t/x).
+    -- We just need to ensure the constants carry through.
+    apply atomic_process_A ep' bounds
+    exact ih
   | processB ep' h_ep' ih =>
     intro P x t hx hP ht
-    -- Inductive step B
-    -- Invoke atomic_process_B using ih
-    sorry
+    -- Inductive step B: (κ, λ) -> B(κ, λ)
+    -- Similar to Process A, atomic_process_B transforms the bound.
+    apply atomic_process_B ep' bounds
+    exact ih
 
 /-- Convenience theorem exposing the bound with the commonly used trivial exponent pair. -/
 theorem expSum_bound_uniform_trivial
