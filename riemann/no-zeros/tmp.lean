@@ -1,5 +1,5 @@
-/-!
-# Test
--/
+import rh.Proof.Main
 
-import Mathlib
+open RH.Proof.Final.RH.Proof.Final.RH.Proof.Final
+
+#check RiemannHypothesis_mathlib_from_pinch_ext_assign

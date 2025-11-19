@@ -82,7 +82,7 @@ def hRe_offXi_from_PPlus_via_transport
   (O : ℂ → ℂ)
   (hRepOn :
     RH.AcademicFramework.HalfPlaneOuterV2.HasPoissonRepOn (AF_F_pinch det2 O)
-      RH.AcademicFramework.HalfPlaneOuterV2.offXi)
+              RH.AcademicFramework.HalfPlaneOuterV2.offXi)
   (hPPlus : RH.Cert.PPlus (fun z => (2 : ℂ) * (J_pinch det2 O z)))
   : ∀ z ∈ RH.AcademicFramework.HalfPlaneOuterV2.offXi,
       0 ≤ ((2 : ℂ) * (J_pinch det2 O z)).re := by

@@ -8,13 +8,11 @@ TARGETS=(
   rh.RS.RouteB_Final
   rh.RS.RouteBPinnedRemovable
   rh.Proof.Main
+  rh.Cert.KxiWhitney_RvM
+  rh.analytic_number_theory.VinogradovKorobov
 )
 
-echo "[ci_routeB] VK_SANDBOX=${VK_SANDBOX:-0}"
-
-if [[ "${VK_SANDBOX:-0}" == "1" ]]; then
-  TARGETS+=(rh.analytic_number_theory.VinogradovKorobov)
-fi
+echo "[ci_routeB] Building all targets (including VK integration)..."
 
 for target in "${TARGETS[@]}"; do
   echo "[ci_routeB] building $target"

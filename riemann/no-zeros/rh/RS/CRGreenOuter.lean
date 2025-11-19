@@ -134,9 +134,9 @@ def outer_exists : OuterOnOmega := by
               Complex.abs (det2 (boundary t) / riemannXi_ext (boundary t)) := by
         intro t; simpa using RH.RS.O_witness_boundary_abs t
       exact
-        (Filter.Eventually.of_forall h_pointwise).mono (by
-          intro t ht _
-          exact ht)
+      (Filter.Eventually.of_forall h_pointwise).mono (by
+        intro t ht _
+        exact ht)
   }
 
 /-- CR-Green outer J (outer-normalized ratio): J := det₂ / (O · ξ_ext).

@@ -29,6 +29,10 @@ export RH.RS.BoundaryWedgeProof.Sealed
 export RH.AnalyticNumberTheory.VinogradovKorobov
   (ShortIntervalCounts
    ShortIntervalCounts.partial_sum_bound
+   VinogradovKorobov.Standalone.AssembledConstants
+   VinogradovKorobov.Standalone.Export
+   VinogradovKorobov.Standalone.assembleConstants
+   VinogradovKorobov.Standalone.buildVKExport
    defaultCounts
    hVK_counts_default
    VKPartialSumBudget_from_counts_default)
