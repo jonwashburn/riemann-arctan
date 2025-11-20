@@ -1032,11 +1032,97 @@ structure ResidueBookkeeping (I : WhitneyInterval) where
 noncomputable def critical_atoms_res
   (I : WhitneyInterval) (bk : ResidueBookkeeping I) : ℝ := bk.total
 
-lemma critical_atoms_res_nonneg
-  (I : WhitneyInterval) (bk : ResidueBookkeeping I) :
-  0 ≤ critical_atoms_res I bk := by
-  simpa [critical_atoms_res]
-    using bk.total_nonneg
+  lemma critical_atoms_res_nonneg
+    (I : WhitneyInterval) (bk : ResidueBookkeeping I) :
+    0 ≤ critical_atoms_res I bk := by
+    simpa [critical_atoms_res]
+      using bk.total_nonneg
+
+/-- Default residue bookkeeping witness (scaffolding). -/
+noncomputable def residue_bookkeeping (I : WhitneyInterval) : ResidueBookkeeping I :=
+  { atoms := []
+  , total := 0
+  , total_nonneg := by simp }
+
+/-- Critical atoms contribution as a residue-based total from bookkeeping. -/
+noncomputable def critical_atoms (I : WhitneyInterval) : ℝ :=
+  critical_atoms_res I (residue_bookkeeping I)
+
+noncomputable def psiI (I : WhitneyInterval) (t : ℝ) : ℝ :=
+  RH.RS.PaperWindow.psi_paper ((t - I.t0) / I.len)
+
+noncomputable def boundary_phase_integrand (I : WhitneyInterval) (t : ℝ) : ℝ :=
+  -- inward normal derivative at the boundary Re = 1/2, i.e. ∂/∂σ (U((1/2+σ), t)) at σ=0
+  deriv (fun σ : ℝ => U_field ((1 / 2 : ℝ) + σ, t)) 0
+
+/-- The boundary phase integrand is the inward normal derivative of `U_field`
+along the boundary `Re = 1/2`. -/
+lemma boundary_phase_is_inward_normal (I : WhitneyInterval) (t : ℝ) :
+  boundary_phase_integrand I t
+    = deriv (fun σ : ℝ => U_field ((1 / 2 : ℝ) + σ, t)) 0 := rfl
+
+/-- Windowed phase integral using the paper window ψ over the Whitney interval. -/
+noncomputable def windowed_phase (I : WhitneyInterval) : ℝ :=
+  ∫ t in I.interval, psiI I t * boundary_phase_integrand I t
+
+/-! The paper window `ψ` is identically 1 on the rescaled Whitney base `I.interval`. -/
+lemma psiI_one_on_interval (I : WhitneyInterval) {t : ℝ}
+  (ht : t ∈ I.interval) : psiI I t = 1 := by
+  -- On the base interval: |t - t0| ≤ len ⇒ |(t - t0)/len| ≤ 1 ⇒ ψ = 1
+  have hlen_pos : 0 < I.len := I.len_pos
+  have h_left : I.t0 - I.len ≤ t := by exact ht.left
+  have h_right : t ≤ I.t0 + I.len := by exact ht.right
+  have h_abs_core : |t - I.t0| ≤ I.len := by
+    -- from t ∈ [t0−len, t0+len]
+    have h1 : -I.len ≤ t - I.t0 := by linarith
+    have h2 : t - I.t0 ≤ I.len := by linarith
+    exact abs_le.mpr ⟨h1, h2⟩
+  have h_div_le_one : |(t - I.t0) / I.len| ≤ (1 : ℝ) := by
+    -- |x| ≤ L, L>0 ⇒ |x| / L ≤ 1 ⇒ |x/L| ≤ 1
+    have : |(t - I.t0) / I.len| = |t - I.t0| / I.len := by
+      simp [abs_div, abs_of_pos hlen_pos]
+    have : |t - I.t0| / I.len ≤ (1 : ℝ) := by
+      have := (div_le_iff₀ (show 0 < I.len by simpa using hlen_pos)).mpr (by simpa using h_abs_core)
+      -- rewriting a ≤ L ↔ a/len ≤ 1 when len>0
+      simpa using this
+    simpa [this] using this
+  -- Evaluate ψ at argument with |·|≤1
+  have : RH.RS.PaperWindow.psi_paper ((t - I.t0) / I.len) = 1 := by
+    have hcond : |(t - I.t0) / I.len| ≤ (1 : ℝ) := h_div_le_one
+    simp [RH.RS.PaperWindow.psi_paper, hcond]
+  simpa [psiI] using this
+
+/-- Since `ψ = 1` on `I.interval`, `windowed_phase` reduces to the bare boundary integral. -/
+lemma windowed_phase_eq_boundary_integral (I : WhitneyInterval) :
+  windowed_phase I = ∫ t in I.interval, boundary_phase_integrand I t := by
+  unfold windowed_phase
+  -- Show the integrands agree a.e. on the restricted measure
+  have h_meas : MeasurableSet (I.interval) := isClosed_Icc.measurableSet
+  have h_impl : ∀ᵐ t ∂(volume), t ∈ I.interval →
+      (psiI I t * boundary_phase_integrand I t = boundary_phase_integrand I t) := by
+    -- pointwise on the set, ψ = 1
+    refine Filter.Eventually.of_forall ?_
+    intro t ht
+    have : psiI I t = 1 := psiI_one_on_interval I ht
+    simpa [this, one_mul]
+  have h_ae :
+      (fun t => psiI I t * boundary_phase_integrand I t)
+        =ᵐ[Measure.restrict volume I.interval]
+      (fun t => boundary_phase_integrand I t) := by
+    -- transfer the implication to the restricted measure
+    have := (ae_restrict_iff' (μ := volume) (s := I.interval)
+      (p := fun t =>
+        psiI I t * boundary_phase_integrand I t = boundary_phase_integrand I t)
+      h_meas).mpr h_impl
+    simpa using this
+  -- Conclude equality of set integrals
+  simpa using (integral_congr_ae h_ae)
+
+/-- Identify the windowed phase integral with the canonical boundary normal
+trace pairing, using the AE identity on the Whitney base. -/
+lemma windowed_phase_is_boundary_pairing (I : WhitneyInterval) :
+  windowed_phase I = ∫ t in I.interval, boundary_phase_integrand I t :=
+  windowed_phase_eq_boundary_integral I
 
 /-! ### Wiring rectangle interior remainder to Poisson via the core kernel
 
@@ -1901,7 +1987,7 @@ KD bounds directly in the weighted partial‑sum form. These are designed to be
 supplied by the CR–Green analytic toolkit and Schur/Cauchy controls, then
 packaged into an `AnnularKDDecomposition` with a calibrated constant. -/
 
-structure KDPartialSumBound (I : WhitneyInterval) : Prop where
+structure KDPartialSumBound (I : WhitneyInterval) where
   C : ℝ
   nonneg : 0 ≤ C
   bound : ∀ K : ℕ,
@@ -2322,7 +2408,7 @@ theorem carleson_energy_bound_from_split_and_row_bound_default
   exact carleson_energy_bound_final_default (I := I) hSplit X hCeq
 
 /‑‑ Diagonal KD partial‑sum interface and trivial conversion to KDPartialSumBound. -/
-structure DiagKDPartialSum (I : WhitneyInterval) : Prop where
+structure DiagKDPartialSum (I : WhitneyInterval) where
   C : ℝ
   nonneg : 0 ≤ C
   bound : ∀ K : ℕ,
@@ -2846,91 +2932,6 @@ noncomputable def U_field : (ℝ × ℝ) → ℝ := fun p =>
   let s := (p.1 : ℂ) + Complex.I * (p.2 : ℂ)
   (Complex.log (J_canonical s)).re
 
-/-!
-Windowed CR–Green phase integral on the Whitney base interval.
-
-We wire the paper window `ψ` (flat-top on [-1,1] with smooth ramps) to the
-boundary pairing. The integrand `boundary_phase_integrand` is intended to be
-the boundary phase derivative −W′(t) of the canonical field along `Re = 1/2`.
-It is currently provided as a placeholder quantity; the CR–Green decomposition
-lemmas in `CRGreenOuter.lean` will be used to identify it precisely in the
-subsequent analysis steps.
--/
-noncomputable def psiI (I : WhitneyInterval) (t : ℝ) : ℝ :=
-  RH.RS.PaperWindow.psi_paper ((t - I.t0) / I.len)
-
-noncomputable def boundary_phase_integrand (I : WhitneyInterval) (t : ℝ) : ℝ :=
-  -- inward normal derivative at the boundary Re = 1/2, i.e. ∂/∂σ (U((1/2+σ), t)) at σ=0
-  deriv (fun σ : ℝ => U_field ((1 / 2 : ℝ) + σ, t)) 0
-
-/-- The boundary phase integrand is the inward normal derivative of `U_field`
-along the boundary `Re = 1/2`. -/
-lemma boundary_phase_is_inward_normal (I : WhitneyInterval) (t : ℝ) :
-  boundary_phase_integrand I t
-    = deriv (fun σ : ℝ => U_field ((1 / 2 : ℝ) + σ, t)) 0 := rfl
-
-/-- Identify the windowed phase integral with the canonical boundary normal
-trace pairing, using the AE identity on the Whitney base. -/
-lemma windowed_phase_is_boundary_pairing (I : WhitneyInterval) :
-  windowed_phase I = ∫ t in I.interval, boundary_phase_integrand I t :=
-  windowed_phase_eq_boundary_integral I
-
-/-- Windowed phase integral using the paper window ψ over the Whitney interval. -/
-noncomputable def windowed_phase (I : WhitneyInterval) : ℝ :=
-  ∫ t in I.interval, psiI I t * boundary_phase_integrand I t
-
-/-! The paper window `ψ` is identically 1 on the rescaled Whitney base `I.interval`. -/
-lemma psiI_one_on_interval (I : WhitneyInterval) {t : ℝ}
-  (ht : t ∈ I.interval) : psiI I t = 1 := by
-  -- On the base interval: |t - t0| ≤ len ⇒ |(t - t0)/len| ≤ 1 ⇒ ψ = 1
-  have hlen_pos : 0 < I.len := I.len_pos
-  have h_left : I.t0 - I.len ≤ t := by exact ht.left
-  have h_right : t ≤ I.t0 + I.len := by exact ht.right
-  have h_abs_core : |t - I.t0| ≤ I.len := by
-    -- from t ∈ [t0−len, t0+len]
-    have h1 : -I.len ≤ t - I.t0 := by linarith
-    have h2 : t - I.t0 ≤ I.len := by linarith
-    exact abs_le.mpr ⟨h1, h2⟩
-  have h_div_le_one : |(t - I.t0) / I.len| ≤ (1 : ℝ) := by
-    -- |x| ≤ L, L>0 ⇒ |x| / L ≤ 1 ⇒ |x/L| ≤ 1
-    have : |(t - I.t0) / I.len| = |t - I.t0| / I.len := by
-      simp [abs_div, abs_of_pos hlen_pos]
-    have : |t - I.t0| / I.len ≤ (1 : ℝ) := by
-      have := (div_le_iff (show 0 < I.len by simpa using hlen_pos)).mpr (by simpa using h_abs_core)
-      -- rewriting a ≤ L ↔ a/len ≤ 1 when len>0
-      simpa using this
-    simpa [this] using this
-  -- Evaluate ψ at argument with |·|≤1
-  have : RH.RS.PaperWindow.psi_paper ((t - I.t0) / I.len) = 1 := by
-    have hcond : |(t - I.t0) / I.len| ≤ (1 : ℝ) := h_div_le_one
-    simp [RH.RS.PaperWindow.psi_paper, hcond]
-  simpa [psiI] using this
-
-/-- Since `ψ = 1` on `I.interval`, `windowed_phase` reduces to the bare boundary integral. -/
-lemma windowed_phase_eq_boundary_integral (I : WhitneyInterval) :
-  windowed_phase I = ∫ t in I.interval, boundary_phase_integrand I t := by
-  unfold windowed_phase
-  -- Show the integrands agree a.e. on the restricted measure
-  have h_meas : MeasurableSet (I.interval) := isClosed_Icc.measurableSet
-  have h_impl : ∀ᵐ t ∂(volume), t ∈ I.interval →
-      (psiI I t * boundary_phase_integrand I t = boundary_phase_integrand I t) := by
-    -- pointwise on the set, ψ = 1
-    refine Filter.Eventually.of_forall ?_
-    intro t ht
-    have : psiI I t = 1 := psiI_one_on_interval I ht
-    simpa [this, one_mul]
-  have h_ae :
-      (fun t => psiI I t * boundary_phase_integrand I t)
-        =ᵐ[Measure.restrict volume I.interval]
-      (fun t => boundary_phase_integrand I t) := by
-    -- transfer the implication to the restricted measure
-    have := (ae_restrict_iff' (μ := volume) (s := I.interval)
-      (p := fun t =>
-        psiI I t * boundary_phase_integrand I t = boundary_phase_integrand I t)
-      h_meas).mpr h_impl
-    simpa using this
-  -- Conclude equality of set integrals
-  simpa using (integral_congr_ae h_ae)
 
 /-! AE transfer helper: identify the abstract boundary integrand with the CR
 boundary trace `-W'` on the base interval, which allows rewriting the boundary
@@ -3093,16 +3094,6 @@ We expose the standard CR–Green phase–velocity identity in two parts:
 These are literature-standard and independent of RH. With them, we derive the
 lower bound used in the wedge closure.
 -/
-
-/-- Default residue bookkeeping witness (scaffolding). -/
-noncomputable def residue_bookkeeping (I : WhitneyInterval) : ResidueBookkeeping I :=
-  { atoms := []
-  , total := 0
-  , total_nonneg := by simp }
-
-/-- Critical atoms contribution as a residue-based total from bookkeeping. -/
-noncomputable def critical_atoms (I : WhitneyInterval) : ℝ :=
-  critical_atoms_res I (residue_bookkeeping I)
 
 -- Helper lemmas for residue calculus removed - these are technical details
 -- covered by the critical_atoms_nonneg axiom above

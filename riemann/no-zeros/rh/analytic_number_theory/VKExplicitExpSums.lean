@@ -24,10 +24,13 @@ for Processes A/B and the base case (van der Corput).
 -/
 
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.NumberTheory.DirichletCharacters
 import Mathlib.MeasureTheory.Integral.SetIntegral
+import Mathlib.Algebra.BigOperators.Group.Finset
+import Mathlib.Tactic
 
 namespace RH.ANT.VinogradovKorobov
+
+open scoped BigOperators
 
 /-- An exponent pair (κ, λ) in the sense of exponent–pair theory.
 We record 0 ≤ κ ≤ 1/2 and 1/2 ≤ λ ≤ 1, which cover all standard pairs. -/
@@ -85,13 +88,15 @@ inductive ValidExponentPair : ExponentPair → Prop where
         hk_lo := sub_nonneg.mpr ep.hl_lo,
         hk_hi := by
           have : ep.lambda ≤ 1 := ep.hl_hi; linarith,
-        hl_lo := add_le_add_right ep.hk_lo _,
-        hl_hi := add_le_add_right ep.hk_hi _,
+        hl_lo := by
+          have : 0 ≤ ep.kappa := ep.hk_lo
+          linarith,
+        hl_hi := by
+           have : ep.kappa ≤ 1/2 := ep.hk_hi
+           linarith,
         hsum := by
           have : ep.kappa + ep.lambda ≤ 1 := ep.hsum; linarith
       }
-  /-- Convexity: Convex combinations of valid pairs are valid.
-      (Omitted for simplicity in this discrete inductive type, but mathematically true) -/
 
 namespace ExponentPair
 
@@ -123,7 +128,7 @@ namespace DirichletPoly
 
 /-- Evaluate a Dirichlet polynomial on a vertical line `s = σ + it`
 as `∑_{n∈supp} a_n n^{-s}`; here we expose the `t`-dependence (σ fixed upstream). -/
-def evalAt (P : DirichletPoly) (σ t : ℝ) : ℂ :=
+noncomputable def evalAt (P : DirichletPoly) (σ t : ℝ) : ℂ :=
   P.support.sum (fun n => P.coeff n * (n : ℂ) ^ (-(σ + Complex.I * t)))
 
 end DirichletPoly
@@ -152,20 +157,25 @@ structure VKBounds where
 
 /-- Atomic Axiom: The van der Corput bound for the trivial pair (0,1).
     This corresponds to the trivial bound on the sum. -/
-axiom atomic_bound_trivial (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) :
+theorem atomic_bound_trivial (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) :
   ∀ (P : DirichletPoly) {x t : ℝ},
     2 ≤ x → P.X ≤ x → t0 ≤ |t| →
-    ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * Real.rpow x (1 - bounds.sigma) * (Real.log (max x Real.e)) ^ bounds.Clog
+    ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * Real.rpow x (1 - bounds.sigma) * (Real.log (max x (Real.exp 1))) ^ bounds.Clog := by
+  sorry
 
 /-- Atomic Axiom: Process A preserves the bound structure (Weyl differencing). -/
-axiom atomic_process_A (ep : ExponentPair) (bounds : VKBounds) :
+theorem atomic_process_A (ep : ExponentPair) (bounds : VKBounds) :
   (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(ep.lambda - bounds.sigma) * (1 + |t|/x)^ep.kappa) →
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - bounds.sigma) * (1 + |t|/x)^(ep.kappa/(2*ep.kappa+2)))
+  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - bounds.sigma) * (1 + |t|/x)^(ep.kappa/(2*ep.kappa+2))) := by
+  intro ih P x t
+  sorry
 
 /-- Atomic Axiom: Process B preserves the bound structure (Van der Corput). -/
-axiom atomic_process_B (ep : ExponentPair) (bounds : VKBounds) :
+theorem atomic_process_B (ep : ExponentPair) (bounds : VKBounds) :
   (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(ep.lambda - bounds.sigma) * (1 + |t|/x)^ep.kappa) →
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^((ep.kappa+1/2) - bounds.sigma) * (1 + |t|/x)^(ep.lambda-1/2))
+  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^((ep.kappa+1/2) - bounds.sigma) * (1 + |t|/x)^(ep.lambda-1/2)) := by
+  intro ih P x t
+  sorry
 
 /-- Explicit VK exponential–sum bound (Khale/Ford uniform range).
 
@@ -193,7 +203,7 @@ theorem expSum_bound_uniform
         bounds.C0
           * Real.rpow x (ep.lambda - bounds.sigma)
           * Real.rpow (1 + |t| / x) ep.kappa
-          * Real.rpow (Real.log (max x Real.e)) bounds.Clog
+          * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
           * (1 + bounds.Cpair * (ep.kappa + ep.lambda)) := by
   induction h_valid with
   | trivial =>
@@ -237,7 +247,7 @@ theorem expSum_bound_uniform_trivial
       bounds.C0
         * Real.rpow x ((ExponentPair.trivial.lambda) - bounds.sigma)
         * Real.rpow (1 + |t| / x) (ExponentPair.trivial.kappa)
-        * Real.rpow (Real.log (max x Real.e)) bounds.Clog
+        * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
         * (1 + bounds.Cpair * (ExponentPair.trivial.kappa + ExponentPair.trivial.lambda)) := by
   have h_valid := ExponentPair.trivial_isValid
   exact expSum_bound_uniform ExponentPair.trivial h_valid bounds t0 ht0 P hx hPX ht

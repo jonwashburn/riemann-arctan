@@ -19,6 +19,7 @@ lean_lib rh where
     `rh.Proof.Main,
     `rh.RS.SchurGlobalization,
     `rh.Cert.KxiWhitney,
+    `rh.Cert.KxiWhitney_RvM,
     `rh.RS.OffZerosBridge,
     `rh.RS.Cayley,
     `rh.RS.PinchCertificate,
@@ -32,6 +33,7 @@ lean_lib rh where
     `rh.RS.Det2Outer,
     `rh.RS.PoissonAI,
     `rh.RS.CRGreenOuter,
+    `rh.RS.BoundaryWedgeProof,
     `rh.RS.WhitneyGeometryDefs,
     `rh.RS.WhitneyAeCore,
     `rh.Cert.KxiPPlus,
@@ -51,6 +53,7 @@ lean_lib rh where
     `rh.academic_framework.ConstructiveOuter,
     `rh.academic_framework.PoissonCayley,
     `rh.academic_framework.CayleyAdapters,
+    `rh.analytic_number_theory.VinogradovKorobov,
     `rh.Compat
   ]
 
