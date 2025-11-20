@@ -108,8 +108,12 @@ lemma littlewood_jensen_bound
       ≤ (1 / (C.C_eta (1 - σ))) * (sigmaLineLogPlusIntegral ζ σ T)
         + C.C_eta' * T * Real.log T
         + C.K_eta := by
-  -- Placeholder: proof to be filled using Littlewood's lemma and step-2 bounds.
-  -- This `sorry` is deliberate in the current standalone wiring phase.
+  -- 1. Apply Littlewood's Lemma (or Jensen's formula) to the rectangle
+  --    defined by [σ, 1] (or [σ, 2]) and [T, 2T].
+  -- 2. The integral of log|ζ| on the boundary relates to sum of distances of zeros.
+  -- 3. The term on the left edge σ+it is the main contribution: ∫ log|ζ(σ+it)|.
+  -- 4. The other edges are bounded by O(log T) or similar (step2 bounds).
+  -- 5. The sum of distances bounds the count N(σ, T).
   sorry
 
 end LittlewoodJensen

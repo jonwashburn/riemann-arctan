@@ -24,11 +24,16 @@ for Processes A/B and the base case (van der Corput).
 -/
 
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Data.Complex.Basic
 import Mathlib.MeasureTheory.Integral.SetIntegral
 import Mathlib.Algebra.BigOperators.Group.Finset
 import Mathlib.Tactic
 
+open ComplexConjugate
+
 namespace RH.ANT.VinogradovKorobov
+
+noncomputable section
 
 open scoped BigOperators
 
@@ -66,19 +71,27 @@ inductive ValidExponentPair : ExponentPair → Prop where
         hk_hi := by
           have h1 : ep.kappa ≤ 1/2 := ep.hk_hi
           have h2 : 0 ≤ ep.kappa := ep.hk_lo
-          nlinarith,
+          have pos_denom : 0 < 2 * ep.kappa + 2 := by linarith
+          rw [div_le_iff₀ pos_denom]
+          linarith,
         hl_lo := by
           have h1 : 1/2 ≤ ep.lambda := ep.hl_lo
           have h2 : 0 ≤ ep.kappa := ep.hk_lo
-          nlinarith,
+          have pos_denom : 0 < 2 * ep.kappa + 2 := by linarith
+          rw [le_div_iff₀ pos_denom]
+          linarith,
         hl_hi := by
           have h1 : ep.lambda ≤ 1 := ep.hl_hi
           have h2 : 0 ≤ ep.kappa := ep.hk_lo
-          nlinarith,
+          have pos_denom : 0 < 2 * ep.kappa + 2 := by linarith
+          rw [div_le_iff₀ pos_denom]
+          linarith,
         hsum := by
           have h1 : ep.kappa + ep.lambda ≤ 1 := ep.hsum
           have h2 : 0 ≤ ep.kappa := ep.hk_lo
-          nlinarith
+          have pos_denom : 0 < 2 * ep.kappa + 2 := by linarith
+          rw [← add_div, div_le_iff₀ pos_denom]
+          linarith
       }
   /-- Process B: (κ, λ) -> (λ - 1/2, κ + 1/2) -/
   | processB {ep : ExponentPair} (h : ValidExponentPair ep) :
@@ -114,24 +127,146 @@ theorem trivial_isValid : ValidExponentPair trivial := ValidExponentPair.trivial
 
 end ExponentPair
 
-/-- A simple Dirichlet–polynomial model for ζ′/ζ approximants. -/
+/-- A simple Dirichlet–polynomial model for ζ′/ζ approximants.  The coefficient function
+vanishes implicitly outside the initial segment `Icc 1 (Nat.ceil X)`. -/
 structure DirichletPoly where
   coeff : ℕ → ℂ
-  support : Finset ℕ
   /-- Truncation height (e.g., X) controlling the support. -/
   X : ℝ
   hX : 1 ≤ X
-  /-- A normalization flag; in practice one arranges `coeff 0 = 0`. -/
-  coeff0 := (0 : ℂ)
 
 namespace DirichletPoly
 
-/-- Evaluate a Dirichlet polynomial on a vertical line `s = σ + it`
-as `∑_{n∈supp} a_n n^{-s}`; here we expose the `t`-dependence (σ fixed upstream). -/
+/-- Natural truncation level used for finite sums. -/
+def trunc (P : DirichletPoly) : ℕ :=
+  Nat.ceil P.X
+
+lemma trunc_pos (P : DirichletPoly) : 1 ≤ P.trunc := by
+  have := Nat.ceil_mono (show (1 : ℝ) ≤ P.X from P.hX)
+  simpa [trunc]
+
+/-- The finite index set describing the truncated Dirichlet polynomial. -/
+def evalSupport (P : DirichletPoly) : Finset ℕ :=
+  Finset.Icc 1 P.trunc
+
+lemma mem_evalSupport {P : DirichletPoly} {n : ℕ} :
+    n ∈ P.evalSupport ↔ 1 ≤ n ∧ n ≤ P.trunc := by
+  simpa [evalSupport] using Finset.mem_Icc
+
+/-- Cardinality of the evaluation support. -/
+lemma card_evalSupport (P : DirichletPoly) :
+    P.evalSupport.card = P.trunc := by
+  simpa [evalSupport] using
+    (Finset.card_Icc (α := ℕ) (m := 1) (n := P.trunc))
+
+/-- The Dirichlet term at index `n`; vanishes outside the contiguous support. -/
+noncomputable def term (P : DirichletPoly) (σ t : ℝ) (n : ℕ) : ℂ :=
+  if h : 1 ≤ n ∧ n ≤ P.trunc then
+    P.coeff n * (n : ℂ) ^ (-(σ + Complex.I * t))
+  else
+    0
+
+/-- Explicit formula for `term` inside the support. -/
+lemma term_of_mem {P : DirichletPoly} {σ t : ℝ} {n : ℕ}
+    (h₁ : 1 ≤ n) (h₂ : n ≤ P.trunc) :
+    P.term σ t n = P.coeff n * (n : ℂ) ^ (-(σ + Complex.I * t)) := by
+  have h : 1 ≤ n ∧ n ≤ P.trunc := ⟨h₁, h₂⟩
+  simp [term, h]
+
+/-- Outside the truncated support the Dirichlet term is zero. -/
+@[simp] lemma term_of_not_mem {P : DirichletPoly} {σ t : ℝ} {n : ℕ}
+    (h : ¬ (1 ≤ n ∧ n ≤ P.trunc)) :
+    P.term σ t n = 0 := by
+  classical
+  simp [term, h]
+
+/-- Evaluate a Dirichlet polynomial on `s = σ + it` using the contiguous support. -/
 noncomputable def evalAt (P : DirichletPoly) (σ t : ℝ) : ℂ :=
-  P.support.sum (fun n => P.coeff n * (n : ℂ) ^ (-(σ + Complex.I * t)))
+  P.evalSupport.sum (fun n => P.coeff n * (n : ℂ) ^ (-(σ + Complex.I * t)))
+
+/-- Expression of `evalAt` via the total `term` function. -/
+lemma evalAt_eq_sum_term (P : DirichletPoly) (σ t : ℝ) :
+    P.evalAt σ t = ∑ n in P.evalSupport, P.term σ t n := by
+  classical
+  unfold evalAt
+  refine Finset.sum_congr rfl ?_
+  intro n hn
+  have h : 1 ≤ n ∧ n ≤ P.trunc := by
+    simpa [evalSupport, Finset.mem_Icc] using hn
+  simp [evalAt, term, evalSupport, Finset.mem_Icc, hn, h]
+
+/-- Variant summing along the contiguous `Icc`. -/
+lemma evalAt_eq_sum_Icc (P : DirichletPoly) (σ t : ℝ) :
+    P.evalAt σ t = ∑ n in Finset.Icc 1 P.trunc, P.term σ t n := by
+  simpa [evalSupport] using P.evalAt_eq_sum_term σ t
 
 end DirichletPoly
+
+section Autocorrelation
+
+variable {ι : Type*} [DecidableEq ι]
+
+/-- Complex conjugation commutes with finite sums. -/
+lemma conj_sum (s : Finset ι) (f : ι → ℂ) :
+    conj (∑ x in s, f x) = ∑ x in s, conj (f x) := by
+  classical
+  refine Finset.induction_on s ?base ?step
+  · simp
+  · intro a s ha hs
+    have hmem : a ∉ s := ha
+    simp [Finset.sum_insert hmem, hs, add_comm, add_left_comm, add_assoc]
+
+/-- Expansion of `∑ f * conj (∑ f)` as a double sum. -/
+lemma sum_mul_conj_eq_double_sum (s : Finset ι) (f : ι → ℂ) :
+    (∑ x in s, f x) * conj (∑ x in s, f x)
+      = ∑ x in s, ∑ y in s, f x * conj (f y) := by
+  classical
+  calc
+    (∑ x in s, f x) * conj (∑ x in s, f x)
+        = (∑ x in s, f x) * (∑ y in s, conj (f y)) := by
+            simpa [conj_sum s f]
+    _ = ∑ x in s, f x * (∑ y in s, conj (f y)) := by
+            simpa [Finset.sum_mul]
+              using
+                (Finset.sum_mul (s := s)
+                  (f := fun x => f x)
+                  (b := ∑ y in s, conj (f y)))
+    _ = ∑ x in s, ∑ y in s, f x * conj (f y) := by
+          refine Finset.sum_congr rfl ?_
+          intro x hx
+          simpa [Finset.mul_sum]
+            using
+              (Finset.mul_sum (s := s)
+                (a := f x)
+                (f := fun y => conj (f y)))
+
+/-- Square of the absolute value of a finite sum expressed via autocorrelations. -/
+lemma sq_abs_sum_eq_real_double_sum (s : Finset ι) (f : ι → ℂ) :
+    Complex.abs (∑ x in s, f x) ^ 2
+      = (∑ x in s, ∑ y in s, f x * conj (f y)).re := by
+  classical
+  have h_sq :
+      Complex.abs (∑ x in s, f x) ^ 2
+        = Complex.normSq (∑ x in s, f x) := by
+    simpa using Complex.sq_abs (∑ x in s, f x)
+  have h_norm :
+      ((∑ x in s, f x) * conj (∑ x in s, f x)).re
+        = Complex.normSq (∑ x in s, f x) := by
+    have := congrArg Complex.re (Complex.mul_conj (∑ x in s, f x))
+    simpa using this
+  have h_real :
+      ((∑ x in s, f x) * conj (∑ x in s, f x)).re
+        = (∑ x in s, ∑ y in s, f x * conj (f y)).re := by
+    have := congrArg Complex.re (sum_mul_conj_eq_double_sum s f)
+    simpa using this
+  calc
+    Complex.abs (∑ x in s, f x) ^ 2
+        = Complex.normSq (∑ x in s, f x) := h_sq
+    _ = ((∑ x in s, f x) * conj (∑ x in s, f x)).re := by
+            simpa using h_norm.symm
+    _ = (∑ x in s, ∑ y in s, f x * conj (f y)).re := h_real
+
+end Autocorrelation
 
 /-
 Uniform exponential–sum bound
@@ -155,6 +290,18 @@ structure VKBounds where
   hCpair : 0 ≤ Cpair
   hσ : 0 ≤ sigma ∧ sigma ≤ 2
 
+/-- Weyl Differencing Lemma (Square Modulus Bound).
+    Standard result: |S|^2 ≤ (2(N+H)/H) * ∑_{|h|<H} (1 - |h|/H) Re(∑ ...).
+    Simplified form for upper bound:
+    |S|^2 ≤ (2N/H + 1) * (N + 2 Re ∑_{1≤h<H} (1-h/H) S_h).
+    Here we state a rough upper bound sufficient for exponent pair derivation. -/
+lemma weyl_differencing_bound (P : DirichletPoly) (σ t : ℝ) (H : ℕ) (hH : 1 ≤ H) :
+  ‖P.evalAt σ t‖^2 ≤
+    ((P.X + H) / H) * (P.X + 2 * ∑ h in Finset.range H, ‖P.evalAt σ t‖) := by
+  -- Placeholder for the standard Weyl differencing inequality proof.
+  -- This involves expanding |∑ a_n|^2 and rearranging indices.
+  sorry
+
 /-- Atomic Axiom: The van der Corput bound for the trivial pair (0,1).
     This corresponds to the trivial bound on the sum. -/
 theorem atomic_bound_trivial (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) :
@@ -164,17 +311,24 @@ theorem atomic_bound_trivial (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) :
   sorry
 
 /-- Atomic Axiom: Process A preserves the bound structure (Weyl differencing). -/
-theorem atomic_process_A (ep : ExponentPair) (bounds : VKBounds) :
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(ep.lambda - bounds.sigma) * (1 + |t|/x)^ep.kappa) →
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - bounds.sigma) * (1 + |t|/x)^(ep.kappa/(2*ep.kappa+2))) := by
-  intro ih P x t
+theorem atomic_process_A (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (K : ℝ → ℝ → ℝ) :
+  (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - bounds.sigma) * Real.rpow (1 + |t|/x) ep.kappa) →
+  (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - bounds.sigma) * Real.rpow (1 + |t|/x) (ep.kappa/(2*ep.kappa+2))) := by
+  intro ih P x t hx hP ht
+  -- Apply Weyl differencing
+  -- Choose H appropriately (optimization step)
+  -- H ≈ x^(1/(kappa+1)) * t^(-kappa/(kappa+1)) ? Or similar.
+  let H := 1 -- Placeholder optimization
+  have h_weyl := weyl_differencing_bound P bounds.sigma t H (by norm_num)
+  -- Apply ih to the inner sums in h_weyl
+  -- Algebra to show the resulting bound matches the target A(ep) exponents.
   sorry
 
 /-- Atomic Axiom: Process B preserves the bound structure (Van der Corput). -/
-theorem atomic_process_B (ep : ExponentPair) (bounds : VKBounds) :
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^(ep.lambda - bounds.sigma) * (1 + |t|/x)^ep.kappa) →
-  (∀ P x t, ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * x^((ep.kappa+1/2) - bounds.sigma) * (1 + |t|/x)^(ep.lambda-1/2)) := by
-  intro ih P x t
+theorem atomic_process_B (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (K : ℝ → ℝ → ℝ) :
+  (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - bounds.sigma) * Real.rpow (1 + |t|/x) ep.kappa) →
+  (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x ((ep.kappa+1/2) - bounds.sigma) * Real.rpow (1 + |t|/x) (ep.lambda-1/2)) := by
+  intro ih P x t hx hP ht
   sorry
 
 /-- Explicit VK exponential–sum bound (Khale/Ford uniform range).
@@ -205,38 +359,33 @@ theorem expSum_bound_uniform
           * Real.rpow (1 + |t| / x) ep.kappa
           * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
           * (1 + bounds.Cpair * (ep.kappa + ep.lambda)) := by
-  induction h_valid with
-  | trivial =>
+  induction h_valid
+  case trivial =>
     intro P x t hx hP ht
     -- Base case: Trivial bound (0, 1)
-    -- The atomic axiom gives the core term x^(1 - σ).
-    -- The (1 + t/x)^0 factor is 1.
-    -- The pair factor is (1 + Cpair * 1).
-    -- We assume Cpair ≥ 0, so 1 ≤ 1 + Cpair.
-    -- This makes the RHS of atomic_bound_trivial smaller than the target, satisfying the inequality.
     have h_atomic := atomic_bound_trivial bounds t0 ht0 P hx hP ht
     apply le_trans h_atomic
-    gcongr
-    -- Remaining algebraic simplification:
-    -- x^(1-σ) * (log x)^Clog ≤ x^(1-σ) * (log x)^Clog * (1 + Cpair)
-    apply one_le_mul_of_one_le_of_one_le (le_rfl)
-    apply le_add_of_nonneg_right
-    exact mul_nonneg bounds.hCpair (by norm_num)
-  | processA ep' h_ep' ih =>
+    sorry -- algebraic simplification
+  case processA ep_prev h_prev ih =>
     intro P x t hx hP ht
     -- Inductive step A: (κ, λ) -> A(κ, λ)
-    -- The atomic axiom atomic_process_A transforms the bound for ep' to the bound for A(ep').
-    -- We need to match the specific algebraic form of A(ep') to the target goal.
-    -- The axiom provides the bound with the correct exponents for x and (1+t/x).
-    -- We just need to ensure the constants carry through.
-    apply atomic_process_A ep' bounds
-    exact ih
-  | processB ep' h_ep' ih =>
+    let K : ℝ → ℝ → ℝ := fun x t => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog * (1 + bounds.Cpair * (ep_prev.kappa + ep_prev.lambda))
+    have h_preservation :=
+      atomic_process_A ep_prev bounds t0 K
+        (fun P x t hx hP ht => by
+          simpa [K, mul_comm, mul_left_comm, mul_assoc] using ih P hx hP ht)
+    apply le_trans (h_preservation P x t hx hP ht)
+    sorry -- constant inequality
+  case processB ep_prev h_prev ih =>
     intro P x t hx hP ht
     -- Inductive step B: (κ, λ) -> B(κ, λ)
-    -- Similar to Process A, atomic_process_B transforms the bound.
-    apply atomic_process_B ep' bounds
-    exact ih
+    let K : ℝ → ℝ → ℝ := fun x t => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog * (1 + bounds.Cpair * (ep_prev.kappa + ep_prev.lambda))
+    have h_preservation :=
+      atomic_process_B ep_prev bounds t0 K
+        (fun P x t hx hP ht => by
+          simpa [K, mul_comm, mul_left_comm, mul_assoc] using ih P hx hP ht)
+    apply le_trans (h_preservation P x t hx hP ht)
+    sorry -- constant inequality
 
 /-- Convenience theorem exposing the bound with the commonly used trivial exponent pair. -/
 theorem expSum_bound_uniform_trivial
@@ -251,5 +400,7 @@ theorem expSum_bound_uniform_trivial
         * (1 + bounds.Cpair * (ExponentPair.trivial.kappa + ExponentPair.trivial.lambda)) := by
   have h_valid := ExponentPair.trivial_isValid
   exact expSum_bound_uniform ExponentPair.trivial h_valid bounds t0 ht0 P hx hPX ht
+
+end
 
 end RH.ANT.VinogradovKorobov

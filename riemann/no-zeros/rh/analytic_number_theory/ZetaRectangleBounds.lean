@@ -69,22 +69,30 @@ abbrev LogDeriv (ζ : ℂ → ℂ) (s : ℂ) : ℂ := (deriv ζ s) / ζ s
 /-- Axiom: Approximate Functional Equation (Simplified).
     For s in the critical strip, ζ(s) can be approximated by a Dirichlet polynomial.
     Here we state a bound form directly: |ζ(s)| is bounded by the exp sum bound + error. -/
-axiom zeta_bound_from_expsum
+theorem zeta_bound_from_expsum
   (ζ : ℂ → ℂ) (R : RectangleSpec) (C : ExpSumConstants)
   (s : ℂ) (hs : R.σ₁ ≤ s.re ∧ s.re ≤ R.σ₂ ∧ R.T ≤ s.im ∧ s.im ≤ 2 * R.T) :
   Complex.abs (ζ s) ≤
     C.vk_bounds.C0 * Real.rpow R.T (C.vk_ep.lambda - R.σ₁) -- Simplified power dependence
     * Real.rpow (Real.log R.T) C.vk_bounds.Clog -- Simplified log dependence
     -- Real form likely involves sum of two terms (N and N approx), simplified here for the bound structure.
+    := by
+  -- Use AFE (Approximate Functional Equation)
+  -- |zeta(s)| <= |sum_{n<=x} n^-s| + |chi(s)| * |sum_{n<=y} n^(s-1)| + Error
+  -- Apply expSum_bound_uniform to both sums.
+  sorry
 
 /-- Axiom: Borel-Carathéodory lemma application.
     Bounds the derivative of a function using the bound on its real part. -/
-axiom borel_caratheodory_log_deriv
+theorem borel_caratheodory_log_deriv
   (f : ℂ → ℂ) (s₀ : ℂ) (r R : ℝ) (M : ℝ)
   (h_holo : DifferentiableOn ℂ f (Metric.ball s₀ R))
   (h_bound : ∀ z ∈ Metric.ball s₀ R, (f z).re ≤ M)
   (h_r : 0 < r) (h_rR : r < R) :
   Complex.abs (deriv f s₀) ≤ (2 * R) / (R - r)^2 * (M + Complex.abs (f s₀)) -- Approximate constant
+  := by
+  -- Standard complex analysis bound.
+  sorry
 
 /-- Log-magnitude bound on the zero-free rectangle. The constants are provided by
 `ExpSumConstants` (to be instantiated from audited numerics). -/
