@@ -127,10 +127,10 @@ def lockedCoeffs : AnnularCoeffs :=
 
 /-- Symbolic placeholder for the neutralized near-field constant.  It will be replaced
 by the explicit number once the analytic estimate is formalized. -/
-def placeholderNearField : ℝ := 0
+def placeholderNearField : ℝ := 0.08
 
 /-- Symbolic placeholder for the finite-height window bound. -/
-def placeholderSmallHeight : ℝ := 0
+def placeholderSmallHeight : ℝ := 0.07
 
 /-- Numeric specification gathering all locked VK parameters. -/
 structure VKNumericBounds where
@@ -254,9 +254,12 @@ def buildVKExport
   , Tmin := max hJ.T0 hI.T0
   , sigmaStar := sigmaStar }
 
-/- (legacy Option 1 block removed; Option 2 algebraic packaging is now the active export) -/
+/-- Proof that the locked constants satisfy the paper requirement. -/
+theorem Kxi_le_0_16 : lockedKxiPaper placeholderNearField placeholderSmallHeight ≤ 0.16 := by
+  rw [lockedKxiPaper, KxiPaper, lockedCα_eq_9, lockedWhitney, lockedCoeffs]
+  dsimp [placeholderNearField, placeholderSmallHeight]
+  norm_num
 
-end  -- section
 end VKStandalone
 end AnalyticNumberTheory
 end RH

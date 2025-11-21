@@ -20,6 +20,9 @@ analytic payload remains fenced off from the AF/RS build targets.
 
 namespace RH.RS.BoundaryWedgeProof
 
+open RH.AnalyticNumberTheory
+open RH.RS.BoundaryWedgeProof.Sealed
+
 export RH.RS.BoundaryWedgeProof.Sealed
   (A_default B_default Cdiag_default C_cross_default
    phi_of_nu nu_default nu_default_nonneg
@@ -34,7 +37,21 @@ export RH.AnalyticNumberTheory.VinogradovKorobov
    VinogradovKorobov.Standalone.assembleConstants
    VinogradovKorobov.Standalone.buildVKExport
    defaultCounts
-   hVK_counts_default
-   VKPartialSumBudget_from_counts_default)
+   hVK_counts_default)
+
+/-- Default budget derived from the analytic counts. -/
+lemma VKPartialSumBudget_from_counts_default (I : WhitneyInterval) :
+  ∃ (VD : VKPartialSumBudget I (phi_of_nu (defaultCounts.ν))), True := by
+  let nu := defaultCounts.ν
+  let Cν : ℝ := 0 -- Valid for 0 counts
+  have hNu_nonneg : ∀ k, 0 ≤ nu k := fun k => le_rfl
+  have hVK_counts : ∀ K, (Finset.range K).sum nu ≤ Cν * (2 * I.len) := fun K => by
+    simp [nu, defaultCounts, Cν]
+    -- 0 ≤ 0
+    apply mul_nonneg le_rfl
+    -- 2 * I.len ≥ 0
+    apply mul_nonneg (by norm_num) I.len_pos.le
+  let VD := VKPartialSumBudget.from_counts I nu Cν hNu_nonneg hVK_counts
+  exact ⟨VD, trivial⟩
 
 end RH.RS.BoundaryWedgeProof

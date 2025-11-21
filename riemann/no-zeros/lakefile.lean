@@ -53,6 +53,10 @@ lean_lib rh where
     `rh.academic_framework.ConstructiveOuter,
     `rh.academic_framework.PoissonCayley,
     `rh.academic_framework.CayleyAdapters,
+    `rh.analytic_number_theory.VKExplicitExpSums,
+    `rh.analytic_number_theory.VKStandalone,
+    `rh.analytic_number_theory.ZetaRectangleBounds,
+    `rh.analytic_number_theory.LittlewoodJensen,
     `rh.analytic_number_theory.VinogradovKorobov,
     `rh.Compat
   ]

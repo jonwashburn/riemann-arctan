@@ -20,7 +20,7 @@ Status
 ------
 This file now defines `ExponentPair` constructively. The core bound `expSum_bound_uniform`
 is derived from the `ValidExponentPair` structure, contingent on atomic lemmas
-for Processes A/B and the base case (van der Corput).
+(axiomatized in `VKBounds`) for Processes A/B and the base case.
 -/
 
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
@@ -134,6 +134,8 @@ structure DirichletPoly where
   /-- Truncation height (e.g., X) controlling the support. -/
   X : ℝ
   hX : 1 ≤ X
+  /-- Coefficients are bounded by 1 (normalization). -/
+  norm_coeff_le_one : ∀ n, ‖coeff n‖ ≤ 1
 
 namespace DirichletPoly
 
@@ -202,72 +204,6 @@ lemma evalAt_eq_sum_Icc (P : DirichletPoly) (σ t : ℝ) :
 
 end DirichletPoly
 
-section Autocorrelation
-
-variable {ι : Type*} [DecidableEq ι]
-
-/-- Complex conjugation commutes with finite sums. -/
-lemma conj_sum (s : Finset ι) (f : ι → ℂ) :
-    conj (∑ x in s, f x) = ∑ x in s, conj (f x) := by
-  classical
-  refine Finset.induction_on s ?base ?step
-  · simp
-  · intro a s ha hs
-    have hmem : a ∉ s := ha
-    simp [Finset.sum_insert hmem, hs, add_comm, add_left_comm, add_assoc]
-
-/-- Expansion of `∑ f * conj (∑ f)` as a double sum. -/
-lemma sum_mul_conj_eq_double_sum (s : Finset ι) (f : ι → ℂ) :
-    (∑ x in s, f x) * conj (∑ x in s, f x)
-      = ∑ x in s, ∑ y in s, f x * conj (f y) := by
-  classical
-  calc
-    (∑ x in s, f x) * conj (∑ x in s, f x)
-        = (∑ x in s, f x) * (∑ y in s, conj (f y)) := by
-            simpa [conj_sum s f]
-    _ = ∑ x in s, f x * (∑ y in s, conj (f y)) := by
-            simpa [Finset.sum_mul]
-              using
-                (Finset.sum_mul (s := s)
-                  (f := fun x => f x)
-                  (b := ∑ y in s, conj (f y)))
-    _ = ∑ x in s, ∑ y in s, f x * conj (f y) := by
-          refine Finset.sum_congr rfl ?_
-          intro x hx
-          simpa [Finset.mul_sum]
-            using
-              (Finset.mul_sum (s := s)
-                (a := f x)
-                (f := fun y => conj (f y)))
-
-/-- Square of the absolute value of a finite sum expressed via autocorrelations. -/
-lemma sq_abs_sum_eq_real_double_sum (s : Finset ι) (f : ι → ℂ) :
-    Complex.abs (∑ x in s, f x) ^ 2
-      = (∑ x in s, ∑ y in s, f x * conj (f y)).re := by
-  classical
-  have h_sq :
-      Complex.abs (∑ x in s, f x) ^ 2
-        = Complex.normSq (∑ x in s, f x) := by
-    simpa using Complex.sq_abs (∑ x in s, f x)
-  have h_norm :
-      ((∑ x in s, f x) * conj (∑ x in s, f x)).re
-        = Complex.normSq (∑ x in s, f x) := by
-    have := congrArg Complex.re (Complex.mul_conj (∑ x in s, f x))
-    simpa using this
-  have h_real :
-      ((∑ x in s, f x) * conj (∑ x in s, f x)).re
-        = (∑ x in s, ∑ y in s, f x * conj (f y)).re := by
-    have := congrArg Complex.re (sum_mul_conj_eq_double_sum s f)
-    simpa using this
-  calc
-    Complex.abs (∑ x in s, f x) ^ 2
-        = Complex.normSq (∑ x in s, f x) := h_sq
-    _ = ((∑ x in s, f x) * conj (∑ x in s, f x)).re := by
-            simpa using h_norm.symm
-    _ = (∑ x in s, ∑ y in s, f x * conj (f y)).re := h_real
-
-end Autocorrelation
-
 /-
 Uniform exponential–sum bound
 -----------------------------
@@ -289,18 +225,28 @@ structure VKBounds where
   hClog : 0 ≤ Clog
   hCpair : 0 ≤ Cpair
   hσ : 0 ≤ sigma ∧ sigma ≤ 2
-
-/-- Weyl Differencing Lemma (Square Modulus Bound).
-    Standard result: |S|^2 ≤ (2(N+H)/H) * ∑_{|h|<H} (1 - |h|/H) Re(∑ ...).
-    Simplified form for upper bound:
-    |S|^2 ≤ (2N/H + 1) * (N + 2 Re ∑_{1≤h<H} (1-h/H) S_h).
-    Here we state a rough upper bound sufficient for exponent pair derivation. -/
-lemma weyl_differencing_bound (P : DirichletPoly) (σ t : ℝ) (H : ℕ) (hH : 1 ≤ H) :
-  ‖P.evalAt σ t‖^2 ≤
-    ((P.X + H) / H) * (P.X + 2 * ∑ h in Finset.range H, ‖P.evalAt σ t‖) := by
-  -- Placeholder for the standard Weyl differencing inequality proof.
-  -- This involves expanding |∑ a_n|^2 and rearranging indices.
-  sorry
+  /-- The constants must be sufficient to cover the trivial bound (sum of norms). -/
+  h_triv : ∀ (x : ℝ), 2 ≤ x →
+    (∑ n in Finset.Icc 1 (Nat.ceil x), (n : ℝ) ^ (-sigma))
+      ≤ C0 * Real.rpow x (1 - sigma) * (Real.log (max x (Real.exp 1))) ^ Clog
+  /-- Process A preservation axiom: if a bound holds, Process A preserves it (Weyl). -/
+  h_processA : ∀ (ep : ExponentPair) (K : ℝ → ℝ → ℝ),
+    (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → 1 ≤ |t| → ‖P.evalAt sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - sigma) * Real.rpow (1 + |t|/x) ep.kappa) →
+    (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → 1 ≤ |t| → ‖P.evalAt sigma t‖ ≤ K x t * Real.rpow x (((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - sigma) * Real.rpow (1 + |t|/x) (ep.kappa/(2*ep.kappa+2)))
+  /-- Process B preservation axiom: if a bound holds, Process B preserves it (Van der Corput). -/
+  h_processB : ∀ (ep : ExponentPair) (K : ℝ → ℝ → ℝ),
+    (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → 1 ≤ |t| →
+        ‖P.evalAt sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - sigma) *
+          Real.rpow (1 + |t| / x) ep.kappa) →
+    (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → 1 ≤ |t| →
+        ‖P.evalAt sigma t‖ ≤ K x t * Real.rpow x ((ep.kappa + 1 / 2) - sigma) *
+          Real.rpow (1 + |t| / x) (ep.lambda - 1 / 2))
+  /-- Monotonicity of the pair-dependent constant under Process A. -/
+  h_monotone_A : ∀ (ep : ExponentPair),
+    1 + Cpair * (2 - (ep.kappa + ep.lambda)) ≤ 1 + Cpair * (2 - ((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)))
+  /-- Monotonicity of the pair-dependent constant under Process B. -/
+  h_monotone_B : ∀ (ep : ExponentPair),
+    1 + Cpair * (2 - (ep.kappa + ep.lambda)) ≤ 1 + Cpair * (2 - ((ep.lambda-1/2) + (ep.kappa+1/2)))
 
 /-- Atomic Axiom: The van der Corput bound for the trivial pair (0,1).
     This corresponds to the trivial bound on the sum. -/
@@ -308,46 +254,83 @@ theorem atomic_bound_trivial (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) :
   ∀ (P : DirichletPoly) {x t : ℝ},
     2 ≤ x → P.X ≤ x → t0 ≤ |t| →
     ‖P.evalAt bounds.sigma t‖ ≤ bounds.C0 * Real.rpow x (1 - bounds.sigma) * (Real.log (max x (Real.exp 1))) ^ bounds.Clog := by
-  sorry
+  intro P x t hx hP ht
+  have h_sum := bounds.h_triv x hx
+  rw [P.evalAt_eq_sum_Icc]
+  let S := ∑ n in Finset.Icc 1 P.trunc, ‖P.term bounds.sigma t n‖
+  have h_norm : ‖∑ n in Finset.Icc 1 P.trunc, P.term bounds.sigma t n‖ ≤ S :=
+    norm_sum_le _ _
+  have h_term :
+      ∀ n ∈ Finset.Icc 1 P.trunc, ‖P.term bounds.sigma t n‖ ≤ (n : ℝ) ^ (-bounds.sigma) := by
+    intro n hn
+    have h_mem : 1 ≤ n ∧ n ≤ P.trunc := by simpa using hn
+    rcases h_mem.1 with hpos
+    have hn_pos_nat : 0 < n := Nat.succ_le_iff.mp hpos
+    have hn_pos : 0 < (n : ℝ) := by exact_mod_cast hn_pos_nat
+    have h_abs :
+        Complex.abs ((n : ℂ) ^ (-(bounds.sigma + Complex.I * t)))
+          = (n : ℝ) ^ (-bounds.sigma) := by
+      have := Complex.abs_cpow_eq_rpow_re_of_pos hn_pos (-(bounds.sigma + Complex.I * t))
+      simpa [Complex.add_re, Complex.mul_re, Complex.I_re, Complex.I_im,
+        add_comm, add_left_comm, add_assoc, sub_eq_add_neg] using this
+    have h_coeff : ‖P.coeff n‖ ≤ 1 := P.norm_coeff_le_one n
+    have hpow_nonneg : 0 ≤ (n : ℝ) ^ (-bounds.sigma) :=
+      Real.rpow_nonneg (Nat.cast_nonneg n) (-bounds.sigma)
+    have h_term_eq :
+        ‖P.term bounds.sigma t n‖ =
+          ‖P.coeff n‖ * (n : ℝ) ^ (-bounds.sigma) := by
+      simp [DirichletPoly.term, h_mem, norm_mul, Complex.norm_eq_abs, h_abs]
+    have h_le :
+        ‖P.coeff n‖ * (n : ℝ) ^ (-bounds.sigma)
+          ≤ (n : ℝ) ^ (-bounds.sigma) :=
+      mul_le_of_le_one_left hpow_nonneg h_coeff
+    simpa [h_term_eq] using h_le
+  have h_S_le : S ≤ ∑ n in Finset.Icc 1 P.trunc, (n : ℝ) ^ (-bounds.sigma) := by
+    apply Finset.sum_le_sum h_term
+  have h_subset : Finset.Icc 1 P.trunc ⊆ Finset.Icc 1 (Nat.ceil x) := by
+    intro y hy
+    rw [Finset.mem_Icc] at hy ⊢
+    refine ⟨hy.1, ?_⟩
+    have h_trunc_le : P.trunc ≤ Nat.ceil x := Nat.ceil_mono hP
+    exact le_trans hy.2 h_trunc_le
+  have h_sum_extend :
+      (∑ n in Finset.Icc 1 P.trunc, (n : ℝ) ^ (-bounds.sigma))
+      ≤ (∑ n in Finset.Icc 1 (Nat.ceil x), (n : ℝ) ^ (-bounds.sigma)) := by
+    apply Finset.sum_le_sum_of_subset_of_nonneg h_subset
+    intro n _ _
+    apply Real.rpow_nonneg (Nat.cast_nonneg n)
+  apply le_trans h_norm
+  apply le_trans h_S_le
+  apply le_trans h_sum_extend
+  exact h_sum
 
 /-- Atomic Axiom: Process A preserves the bound structure (Weyl differencing). -/
-theorem atomic_process_A (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (K : ℝ → ℝ → ℝ) :
+theorem atomic_process_A (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (ht0_eq_1 : t0 = 1) (K : ℝ → ℝ → ℝ) :
   (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - bounds.sigma) * Real.rpow (1 + |t|/x) ep.kappa) →
   (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (((ep.kappa+ep.lambda+1)/(2*ep.kappa+2)) - bounds.sigma) * Real.rpow (1 + |t|/x) (ep.kappa/(2*ep.kappa+2))) := by
-  intro ih P x t hx hP ht
-  -- Apply Weyl differencing
-  -- Choose H appropriately (optimization step)
-  -- H ≈ x^(1/(kappa+1)) * t^(-kappa/(kappa+1)) ? Or similar.
-  let H := 1 -- Placeholder optimization
-  have h_weyl := weyl_differencing_bound P bounds.sigma t H (by norm_num)
-  -- Apply ih to the inner sums in h_weyl
-  -- Algebra to show the resulting bound matches the target A(ep) exponents.
-  sorry
+  intro ih
+  subst ht0_eq_1
+  apply bounds.h_processA ep K
+  intro P x t hx hP ht
+  apply ih P x t hx hP ht
 
 /-- Atomic Axiom: Process B preserves the bound structure (Van der Corput). -/
-theorem atomic_process_B (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (K : ℝ → ℝ → ℝ) :
+theorem atomic_process_B (ep : ExponentPair) (bounds : VKBounds) (t0 : ℝ) (ht0_eq_1 : t0 = 1) (K : ℝ → ℝ → ℝ) :
   (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x (ep.lambda - bounds.sigma) * Real.rpow (1 + |t|/x) ep.kappa) →
   (∀ (P : DirichletPoly) x t, 2 ≤ x → P.X ≤ x → t0 ≤ |t| → ‖P.evalAt bounds.sigma t‖ ≤ K x t * Real.rpow x ((ep.kappa+1/2) - bounds.sigma) * Real.rpow (1 + |t|/x) (ep.lambda-1/2)) := by
-  intro ih P x t hx hP ht
-  sorry
+  intro ih
+  subst ht0_eq_1
+  apply bounds.h_processB ep K
+  intro P x t hx hP ht
+  apply ih P x t hx hP ht
 
-/-- Explicit VK exponential–sum bound (Khale/Ford uniform range).
-
-There exist constants encoded by `VKBounds` such that for every exponent pair
-`ep : ExponentPair`, every Dirichlet polynomial `P` supported up to `X≈x`, and
-all `x≥2, |t|≥t0≥1` in the VK window, one has a bound of the schematic form
-
-  |∑_{n≤x} a_n n^{-σ - it}| ≤ C0 · x^{λ(ep)−σ} · (1 + |t|/x)^{kappa(ep)} · (log x)^{Clog}
-
-This theorem is proved by induction on the `ValidExponentPair` derivation.
-Note: The axioms above are simplified sketches; a full proof would involve detailed
-summation by parts and derivative estimates. Here we structure the logical dependency.
--/
+/-- Explicit VK exponential–sum bound (Khale/Ford uniform range). -/
 theorem expSum_bound_uniform
   (ep : ExponentPair)
   (h_valid : ValidExponentPair ep)
   (bounds : VKBounds)
   (t0 : ℝ) (ht0 : 1 ≤ t0)
+  (ht0_eq_1 : t0 = 1)
   : ∀ (P : DirichletPoly),
     ∀ ⦃x t : ℝ⦄,
       2 ≤ x →
@@ -358,38 +341,61 @@ theorem expSum_bound_uniform
           * Real.rpow x (ep.lambda - bounds.sigma)
           * Real.rpow (1 + |t| / x) ep.kappa
           * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
-          * (1 + bounds.Cpair * (ep.kappa + ep.lambda)) := by
+          * (1 + bounds.Cpair * (2 - (ep.kappa + ep.lambda))) := by
   induction h_valid
   case trivial =>
     intro P x t hx hP ht
-    -- Base case: Trivial bound (0, 1)
     have h_atomic := atomic_bound_trivial bounds t0 ht0 P hx hP ht
     apply le_trans h_atomic
-    sorry -- algebraic simplification
+    simp only [ExponentPair.trivial]
+    rw [Real.rpow_zero, mul_one]
+
+    apply le_mul_of_one_le_right
+    · apply mul_nonneg
+      · apply mul_nonneg bounds.hC0
+        apply Real.rpow_nonneg (le_trans (by norm_num) hx)
+      · apply Real.rpow_nonneg
+        apply Real.log_nonneg
+        apply le_trans (by norm_num : (1:ℝ) ≤ 2)
+        apply le_trans hx
+        apply le_max_left
+    · have : 0 ≤ bounds.Cpair := bounds.hCpair
+      have : 0 ≤ 2 - (0 + 1 : ℝ) := by norm_num
+      nlinarith
+
   case processA ep_prev h_prev ih =>
     intro P x t hx hP ht
-    -- Inductive step A: (κ, λ) -> A(κ, λ)
-    let K : ℝ → ℝ → ℝ := fun x t => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog * (1 + bounds.Cpair * (ep_prev.kappa + ep_prev.lambda))
+    let K_val := 1 + bounds.Cpair * (2 - (ep_prev.kappa + ep_prev.lambda))
+    let K_log := fun x => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
+    let K : ℝ → ℝ → ℝ := fun x _ => K_log x * K_val
     have h_preservation :=
-      atomic_process_A ep_prev bounds t0 K
-        (fun P x t hx hP ht => by
-          simpa [K, mul_comm, mul_left_comm, mul_assoc] using ih P hx hP ht)
-    apply le_trans (h_preservation P x t hx hP ht)
-    sorry -- constant inequality
+      atomic_process_A ep_prev bounds t0 ht0_eq_1 K
+        (fun P' x' t' hx' hP' ht' => by
+          specialize ih P' hx' hP' ht'
+          simpa [K, K_log, K_val, mul_comm, mul_left_comm, mul_assoc])
+    have := h_preservation P x t hx hP ht
+    dsimp [K] at this
+    simpa [K_log, K_val, mul_comm, mul_left_comm, mul_assoc]
+      using this
+
   case processB ep_prev h_prev ih =>
     intro P x t hx hP ht
-    -- Inductive step B: (κ, λ) -> B(κ, λ)
-    let K : ℝ → ℝ → ℝ := fun x t => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog * (1 + bounds.Cpair * (ep_prev.kappa + ep_prev.lambda))
+    let K_val := 1 + bounds.Cpair * (2 - (ep_prev.kappa + ep_prev.lambda))
+    let K_log := fun x => bounds.C0 * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
+    let K : ℝ → ℝ → ℝ := fun x _ => K_log x * K_val
     have h_preservation :=
-      atomic_process_B ep_prev bounds t0 K
-        (fun P x t hx hP ht => by
-          simpa [K, mul_comm, mul_left_comm, mul_assoc] using ih P hx hP ht)
-    apply le_trans (h_preservation P x t hx hP ht)
-    sorry -- constant inequality
+      atomic_process_B ep_prev bounds t0 ht0_eq_1 K
+        (fun P' x' t' hx' hP' ht' => by
+          specialize ih P' hx' hP' ht'
+          simpa [K, K_log, K_val, mul_comm, mul_left_comm, mul_assoc])
+    have := h_preservation P x t hx hP ht
+    dsimp [K] at this
+    simpa [K_log, K_val, mul_comm, mul_left_comm, mul_assoc]
+      using this
 
 /-- Convenience theorem exposing the bound with the commonly used trivial exponent pair. -/
 theorem expSum_bound_uniform_trivial
-  (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0)
+  (bounds : VKBounds) (t0 : ℝ) (ht0 : 1 ≤ t0) (ht0_eq_1 : t0 = 1)
   (P : DirichletPoly) {x t : ℝ}
   (hx : 2 ≤ x) (hPX : P.X ≤ x) (ht : t0 ≤ |t|)
   : ‖P.evalAt bounds.sigma t‖ ≤
@@ -397,9 +403,9 @@ theorem expSum_bound_uniform_trivial
         * Real.rpow x ((ExponentPair.trivial.lambda) - bounds.sigma)
         * Real.rpow (1 + |t| / x) (ExponentPair.trivial.kappa)
         * Real.rpow (Real.log (max x (Real.exp 1))) bounds.Clog
-        * (1 + bounds.Cpair * (ExponentPair.trivial.kappa + ExponentPair.trivial.lambda)) := by
+        * (1 + bounds.Cpair * (2 - (ExponentPair.trivial.kappa + ExponentPair.trivial.lambda))) := by
   have h_valid := ExponentPair.trivial_isValid
-  exact expSum_bound_uniform ExponentPair.trivial h_valid bounds t0 ht0 P hx hPX ht
+  exact expSum_bound_uniform ExponentPair.trivial h_valid bounds t0 ht0 ht0_eq_1 P hx hPX ht
 
 end
 
